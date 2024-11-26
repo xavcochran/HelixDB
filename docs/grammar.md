@@ -54,10 +54,14 @@ LIMIT 50
 ### HelixQL Example
     
 ```rust
-use Schema::{Users};                                // import the schema
+use Schema::{User};                                     // import the schema
 
-GET Users::Followers DISTINCT -> User               // get all the followers of a user returning the user
-    WHERE Status::Active                            // filter out followers who are not active
-    LIMIT 50                                        // limit the number of followers to 50 
-    RETURN Username, FollowerCount, FollowingCount  // return the list of nodes as the following fields
+QUERY GetFollowers =>                                   // declare new query
+    GET User::In::Followers DISTINCT -> User            // get all the followers of a user returning the user
+        WHERE Status::Active                            // filter out followers who are not active
+        LIMIT 50                                        // limit the number of followers to 50 
+        RETURN Username, FollowerCount, FollowingCount  // return the username, follower count, and following count of the followers
+        AS LIST                                         // return the followers as a list
 ```
+
+**Output:** The output of the query will automatically be transformed into the native language type unless specified otherwise.
