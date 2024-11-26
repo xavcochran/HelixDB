@@ -57,11 +57,10 @@ LIMIT 50
 use Schema::{Users}; // import the schema
 
 // get all the followers of a user returning the user
-GET Users::Followers -> User 
+GET Users::Followers DISTINCT -> User 
     // filter out followers who are not active
     WHERE Status::Active
     // limit the number of followers to 50 
-    // automatically deduplication
     LIMIT 50
     // return the list of nodes as the following fields
     RETURN Username, FollowerCount, FollowingCount
