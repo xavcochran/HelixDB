@@ -56,12 +56,8 @@ LIMIT 50
 ```rust
 use Schema::{Users}; // import the schema
 
-// get all the followers of a user returning the user
-GET Users::Followers DISTINCT -> User 
-    // filter out followers who are not active
-    WHERE Status::Active
-    // limit the number of followers to 50 
-    LIMIT 50
-    // return the list of nodes as the following fields
-    RETURN Username, FollowerCount, FollowingCount
+GET Users::Followers DISTINCT -> User  // get all the followers of a user returning the user
+    WHERE Status::Active // filter out followers who are not active
+    LIMIT 50 // limit the number of followers to 50 
+    RETURN Username, FollowerCount, FollowingCount // return the list of nodes as the following fields
 ```
