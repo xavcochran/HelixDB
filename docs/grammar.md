@@ -10,7 +10,7 @@ Below are some examples of current query languages for the following functionali
 3. Limit the number of followers to 50
 4. Return the username, follower count, and following count of the followers
 
-```text
+```javascript
 // Example Query using Gremlin
 g.V()
   .hasLabel('user')
@@ -53,11 +53,16 @@ LIMIT 50
 
 ### HelixQL Example
     
-```text
-use Schema::{Users}
+```rust
+use Schema::{Users}; // import the schema
 
-GET Users::Followers -> User
+// get all the followers of a user returning the user
+GET Users::Followers -> User 
+    // filter out followers who are not active
     WHERE Status::Active
+    // limit the number of followers to 50 
+    // automatically deduplication
     LIMIT 50
+    // return the list of nodes as the following fields
     RETURN Username, FollowerCount, FollowingCount
 ```
