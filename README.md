@@ -1,11 +1,11 @@
 # HelixDB
 
-HelixDB is a lightweight graph database with lightening fast startup times, and millisecond query latency.
+HelixDB is a lightweight graph database with lightning fast startup times, and millisecond query latency.
 
 ## Intial Features
 
 - **Light Weight**: Helix will be designed to be as lightweight as possible. This will allow for reduced costs due to the lower hardware requirements, and faster startup times.
-- **Fast Startup**: Helix will be designed to have lightening fast startup times through its optimised data storage format, and lazy loading.
+- **Fast Startup**: Helix will be designed to have lightning fast startup times through its optimised data storage format, and lazy loading.
 - **Millisecond Query Latency**: Helix will have millisecond query latency through its optimised query engine and lightweight design. 
 - **Highly Available**: Helix will be designed to be highly available. This will allow for reduced downtime, and increased reliability.
 - **Scalable**: Helix will be highly scalable allowing for increased data storage, and increased query throughput.
@@ -135,3 +135,6 @@ HelixDB is a lightweight graph database with lightening fast startup times, and 
 | High performance | C++ Integration needed |
 | Used in many databases | General Purpose |
 | Good Documentation | Less control over storage format |
+
+
+
