@@ -241,8 +241,8 @@ QUERY GetAllUsersAndFollowers =>
         Followers <- In::Follows
     RETURN User::{Username, FollowerCount}, Followers::{Username, FollowerCount}
 ```
-```text
 This would return
+```text
 [
     [
         User: {
