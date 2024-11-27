@@ -241,7 +241,7 @@ QUERY GetAllUsersAndFollowers =>
         Followers <- In::Follows
     RETURN User::{Username, FollowerCount}, Followers::{Username, FollowerCount}
 ```
-```json
+```text
 This would return
 [
     [
@@ -280,7 +280,7 @@ QUERY GetAllUsersAndFollowers =>
         Followers::{Username, NumberOfFollowers: FollowerCount} 
 ```
 Which would return 
-```json
+```text
 [
     [
         User: {
