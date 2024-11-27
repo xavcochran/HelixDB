@@ -75,7 +75,7 @@ QUERY GetFollowers(userID: String) =>               // declare new query
 
 #### Schema definitions
 
-A Helix schema enriches queries with types. 
+A Helix schema enriches queries with types.
 
 #### `QUERY` Statement
 
@@ -111,12 +111,13 @@ GET User <- User // Assign the result of the query to the variable User
 You can then use the variables as part of other/sub traversals or in the `RETURN` statement.
 
 ```rust
-RETURN User, Followers 
+RETURN User, Followers
 ```
-```rust 
+
+```rust
 GET User <- User
     Followers <- In::Follows
-    
+
 RETURN User, Followers, NumberOfFollowers: COUNT(Followers)
 ```
 
@@ -222,7 +223,7 @@ LIMIT 50 // Limit the number of results to 50
 
 #### `RETURN` Statement
 
-The `RETURN` statement is used to specify the fields to return in the output of the query. The `RETURN` statement can be followed by a comma-separated list of field names. The field names must be valid field names from the schema. The fields are returned in the order specified in the `RETURN` statement. If no fields are specified, all fields are returned. 
+The `RETURN` statement is used to specify the fields to return in the output of the query. The `RETURN` statement can be followed by a comma-separated list of field names. The field names must be valid field names from the schema. The fields are returned in the order specified in the `RETURN` statement. If no fields are specified, all fields are returned.
 
 NOTE: The `RETURN` statement returns data as a list by default unless specified otherwise.
 
@@ -239,23 +240,63 @@ QUERY GetAllUsersAndFollowers =>
     GET User <- User
         Followers <- In::Follows
     RETURN User::{Username, FollowerCount}, Followers::{Username, FollowerCount}
-    /* This would return 
+```
+```json
+This would return
+[
     [
-        [
-            User: {
-                Username: "John", 
-                FollowerCount: 10
-            }, 
-            Followers: [
-                {
-                    Username: "Jane", 
-                    FollowerCount: 20
-                }, 
-                ...
-            ]
+        User: {
+            Username: "John",
+            FollowerCount: 10
+        },
+        Followers: [
+            {
+                Username: "Jane",
+                FollowerCount: 20
+            },
+            ...
         ]
-    ]
-    */
+    ],
+    [
+        User: {
+        ...
+        },
+        Followers: [
+        ...
+        ]
+    ],
+    ...
+]
+```
+Which is a list of elements,
+where each element is a set of maps with the type as the key and the fields as the values
+unless you specify the key to be something else or override the value keys
+e.g. if you did the following:
+```rust
+QUERY GetAllUsersAndFollowers =>
+    GET User <- User
+        Followers <- In::Follows
+    RETURN User::{Username, NumberOfFollowers: FollowerCount}, 
+        Followers::{Username, NumberOfFollowers: FollowerCount} 
+```
+Which would return 
+```json
+[
+    [
+        User: {
+            Username: "John",
+            NumberOfFollowers: 10 // this would be overridden
+        },
+        Followers: [
+            {
+                Username: "Jane",
+                NumberOfFollowers: 20 // this would be overridden
+            },
+            ...
+        ]
+    ],
+    ...
+]
 ```
 
 ##### `RETURN...JSON` Statement
@@ -270,8 +311,10 @@ JSON // Convert the output of the query to a JSON object
 ##### `RETURN...NEXT` Statement
 
 The `NEXT` statement is used to return the next result in the query. Calling this statement will return the next result in the query. If there are no more results, it will return an empty result. This statement can be used to iterate over the results of the query.
+
 ```rust
 RETURN Username, FollowerCount, FollowingCount
 NEXT // Return the next result in the query
 ```
+
 ---
