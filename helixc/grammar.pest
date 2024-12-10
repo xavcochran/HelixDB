@@ -1,0 +1,61 @@
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+
+// Basic elements
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+string_literal = @{ "\"" ~ (!("\"") ~ ANY)* ~ "\"" }
+number_literal = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+boolean_literal = @{ "true" | "false" }
+literal = _{ string_literal | number_literal | boolean_literal }
+
+// Types
+type_def = { "String" | "Number" | "Boolean" | "Date" | "[" ~ type_def ~ "]" }
+
+// Parameters
+parameter = { identifier ~ ":" ~ type_def }
+parameter_list = { parameter ~ ("," ~ parameter)* }
+parameters = { "(" ~ parameter_list? ~ ")" }
+
+// Traversal expressions
+property = { identifier }
+property_traversal = { property ~ ("::" ~ (edge_traversal | property_traversal | function_call))* }
+edge_traversal = { ("InE" | "OutE" | "In" | "Out") ~ "::" ~ identifier }
+vertex_traversal = { ("V" | identifier) ~ ("::" ~ (edge_traversal | property_traversal | function_call))* }
+
+// Function calls
+argument = { traversal_expression | literal | "?" }
+arguments = { argument ~ ("," ~ argument)* }
+function_call = { identifier ~ "(" ~ arguments? ~ ")" }
+
+// Traversal expressions (continued)
+traversal_expression = { vertex_traversal | edge_traversal | property_traversal | function_call }
+
+// Conditions - Rewritten to avoid left recursion
+comparison = { traversal_expression }
+primary_condition = _{ 
+    traversal_expression |
+    function_call |
+    comparison |
+    "(" ~ condition ~ ")"
+}
+condition_operator = _{ "AND" | "OR" }
+condition = { primary_condition ~ (condition_operator ~ primary_condition)* }
+
+// Clauses
+traversal_assignment = { identifier ~ "<-" ~ traversal_expression }
+where_clause = { "WHERE" ~ "(" ~ condition ~ ")" }
+get_clause = { "GET" ~ traversal_assignment ~ ("," ~ traversal_assignment)* ~ where_clause? }
+
+field_definition = { identifier ~ ":" ~ (traversal_expression | "[" ~ traversal_assignment+ ~ "]") }
+field_definitions = { field_definition ~ ("," ~ field_definition)* }
+add_field_clause = { "ADD_FIELD" ~ identifier ~ "{" ~ field_definitions ~ "}" }
+
+return_item = { identifier }
+return_items = { return_item ~ ("," ~ return_item)* }
+return_clause = { "RETURN" ~ return_items }
+
+// Query body
+query_body = { get_clause ~ add_field_clause? ~ return_clause }
+
+// Top level
+query = { "QUERY" ~ identifier ~ parameters? ~ "=>" ~ query_body }
