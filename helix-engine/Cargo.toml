@@ -1,0 +1,18 @@
+[package]
+name = "helix-engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rocksdb = "0.22.0"
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1.11.0", features = ["v4", "fast-rng"] }
+
+
+[lib]
+name = "helixengine"
+path = "src/lib.rs"
+
+[[bin]]
+name = "helixengine"
+path = "src/main.rs"
