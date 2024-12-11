@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::storage_core::graph::{Edge, GraphError, GraphMethods, Node, Value};
 
-// data type key prefixes as bytes
+// Byte values of data-type key prefixes
 const NODE_PREFIX: &[u8] = b"n:";
 const EDGE_PREFIX: &[u8] = b"e:";
 const NODE_LABEL_PREFIX: &[u8] = b"nl:";
@@ -21,8 +21,8 @@ pub struct HelixGraphStorage {
 
 // const path: &str = "./data/graph_data";
 
-// constructor
 impl HelixGraphStorage {
+    /// HelixGraphStorage struct constructor
     fn new(path: &str) -> Result<HelixGraphStorage, GraphError> {
         let mut opts = Options::default();
         opts.create_if_missing(true);
@@ -33,22 +33,27 @@ impl HelixGraphStorage {
         Ok(Self { db })
     }
 
+    /// Creates node key using the prefix and given id
     fn node_key(id: &str) -> Vec<u8> {
         [NODE_PREFIX, id.as_bytes()].concat()
     }
 
+    /// Creates edge key using the prefix and given id
     fn edge_key(id: &str) -> Vec<u8> {
         [EDGE_PREFIX, id.as_bytes()].concat()
     }
 
+    /// Creates node label key using the prefix, the given label, and id 
     fn node_label_key(label: &str, id: &str) -> Vec<u8> {
         [NODE_LABEL_PREFIX, label.as_bytes(), b":", id.as_bytes()].concat()
-    }
+    }   
 
+    /// Creates edge label key using the prefix, the given label, and  id 
     fn edge_label_key(label: &str, id: &str) -> Vec<u8> {
         [EDGE_LABEL_PREFIX, label.as_bytes(), b":", id.as_bytes()].concat()
     }
 
+    /// Creates key for an outgoing edge using the prefix, source node id, and edge id
     fn out_edge_key(node_id: &str, edge_id: &str) -> Vec<u8> {
         [
             OUT_EDGES_PREFIX,
@@ -59,6 +64,7 @@ impl HelixGraphStorage {
         .concat()
     }
 
+    /// Creates key for an incoming edge using the prefix, sink node id, and edge id
     fn in_edge_key(node_id: &str, edge_id: &str) -> Vec<u8> {
         [
             IN_EDGES_PREFIX,
@@ -73,7 +79,7 @@ impl HelixGraphStorage {
 impl GraphMethods for HelixGraphStorage {
     fn check_exists(&self, id: &str) -> Result<bool, GraphError> {
         match self.db.get_pinned(id) {
-            Ok(Some(_))  => Ok(true),
+            Ok(Some(_)) => Ok(true),
             Ok(None) => Ok(false),
             Err(err) => Err(GraphError::from(err)),
         }
@@ -168,28 +174,32 @@ impl GraphMethods for HelixGraphStorage {
     fn drop_node(&self, id: &str) -> Result<(), GraphError> {
         // get out edges
         let out_prefix = Self::out_edge_key(id, "");
-        let iter = self.db.iterator(IteratorMode::From(&out_prefix, rocksdb::Direction::Forward));
+        let iter = self
+            .db
+            .iterator(IteratorMode::From(&out_prefix, rocksdb::Direction::Forward));
         // delete them
         for result in iter {
             let (key, _) = result?;
             if !key.starts_with(&out_prefix) {
                 break;
             }
-            
+
             let edge_id = String::from_utf8(key[out_prefix.len()..].to_vec()).unwrap();
             self.drop_edge(&edge_id)?;
         }
 
         // get in edges
         let in_prefix = Self::in_edge_key(id, "");
-        let iter = self.db.iterator(IteratorMode::From(&in_prefix, rocksdb::Direction::Forward));
+        let iter = self
+            .db
+            .iterator(IteratorMode::From(&in_prefix, rocksdb::Direction::Forward));
         // delete them
         for result in iter {
             let (key, _) = result?;
             if !key.starts_with(&in_prefix) {
                 break;
             }
-            
+
             let edge_id = String::from_utf8(key[in_prefix.len()..].to_vec()).unwrap();
             self.drop_edge(&edge_id)?;
         }
@@ -203,8 +213,7 @@ impl GraphMethods for HelixGraphStorage {
     fn drop_edge(&self, id: &str) -> Result<(), GraphError> {
         match self.db.delete(Self::edge_key(id)) {
             Ok(_) => Ok(()),
-            Err(err) => Err(GraphError::from(err))
+            Err(err) => Err(GraphError::from(err)),
         }
     }
 }
-
