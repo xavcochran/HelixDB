@@ -12,8 +12,8 @@ const NODE_PREFIX: &[u8] = b"n:";
 const EDGE_PREFIX: &[u8] = b"e:";
 const NODE_LABEL_PREFIX: &[u8] = b"nl:";
 const EDGE_LABEL_PREFIX: &[u8] = b"el:";
-const OUT_EDGES_PREFIX: &[u8] = b"out:";
-const IN_EDGES_PREFIX: &[u8] = b"in:";
+const OUT_EDGES_PREFIX: &[u8] = b"o:";
+const IN_EDGES_PREFIX: &[u8] = b"i:";
 
 pub struct HelixGraphStorage {
     db: DB,
@@ -23,7 +23,7 @@ pub struct HelixGraphStorage {
 
 impl HelixGraphStorage {
     /// HelixGraphStorage struct constructor
-    fn new(path: &str) -> Result<HelixGraphStorage, GraphError> {
+    pub fn new(path: &str) -> Result<HelixGraphStorage, GraphError> {
         let mut opts = Options::default();
         opts.create_if_missing(true);
         let db = match DB::open(&opts, path) {
@@ -43,21 +43,22 @@ impl HelixGraphStorage {
         [EDGE_PREFIX, id.as_bytes()].concat()
     }
 
-    /// Creates node label key using the prefix, the given label, and id 
+    /// Creates node label key using the prefix, the given label, and id
     fn node_label_key(label: &str, id: &str) -> Vec<u8> {
         [NODE_LABEL_PREFIX, label.as_bytes(), b":", id.as_bytes()].concat()
-    }   
+    }
 
-    /// Creates edge label key using the prefix, the given label, and  id 
+    /// Creates edge label key using the prefix, the given label, and  id
     fn edge_label_key(label: &str, id: &str) -> Vec<u8> {
         [EDGE_LABEL_PREFIX, label.as_bytes(), b":", id.as_bytes()].concat()
     }
 
     /// Creates key for an outgoing edge using the prefix, source node id, and edge id
-    fn out_edge_key(node_id: &str, edge_id: &str) -> Vec<u8> {
+    /// 35 Bytes
+    fn out_edge_key(source_node_id: &str, edge_id: &str) -> Vec<u8> {
         [
             OUT_EDGES_PREFIX,
-            node_id.as_bytes(),
+            source_node_id.as_bytes(),
             b":",
             edge_id.as_bytes(),
         ]
@@ -65,10 +66,11 @@ impl HelixGraphStorage {
     }
 
     /// Creates key for an incoming edge using the prefix, sink node id, and edge id
-    fn in_edge_key(node_id: &str, edge_id: &str) -> Vec<u8> {
+    /// 35 Bytes
+    fn in_edge_key(sink_node_id: &str, edge_id: &str) -> Vec<u8> {
         [
-            IN_EDGES_PREFIX,
-            node_id.as_bytes(),
+            OUT_EDGES_PREFIX,
+            sink_node_id.as_bytes(),
             b":",
             edge_id.as_bytes(),
         ]
@@ -78,7 +80,7 @@ impl HelixGraphStorage {
 
 impl GraphMethods for HelixGraphStorage {
     fn check_exists(&self, id: &str) -> Result<bool, GraphError> {
-        match self.db.get_pinned(id) {
+        match self.db.get_pinned(Self::node_key(id)) {
             Ok(Some(_)) => Ok(true),
             Ok(None) => Ok(false),
             Err(err) => Err(GraphError::from(err)),
@@ -86,7 +88,7 @@ impl GraphMethods for HelixGraphStorage {
     }
 
     fn get_temp_node(&self, id: &str) -> Result<Node, GraphError> {
-        match self.db.get_pinned(id) {
+        match self.db.get_pinned(Self::node_key(id)) {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
             Ok(None) => Err(GraphError::Other(format!("Item not found!"))),
             Err(err) => Err(GraphError::from(err)),
@@ -94,7 +96,7 @@ impl GraphMethods for HelixGraphStorage {
     }
 
     fn get_temp_edge(&self, id: &str) -> Result<Edge, GraphError> {
-        match self.db.get_pinned(id) {
+        match self.db.get_pinned(Self::edge_key(id)) {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
             Ok(None) => Err(GraphError::Other(format!("Item not found!"))),
             Err(err) => Err(GraphError::from(err)),
@@ -109,7 +111,7 @@ impl GraphMethods for HelixGraphStorage {
         }
     }
     fn get_edge(&self, id: &str) -> Result<Edge, GraphError> {
-        match self.db.get(Self::edge_key(id)) {
+        match self.db.get([EDGE_PREFIX, id.as_bytes()].concat()) {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
             Ok(None) => Err(GraphError::Other(format!("Item not found!"))),
             Err(err) => Err(GraphError::from(err)),
@@ -210,10 +212,184 @@ impl GraphMethods for HelixGraphStorage {
         Ok(())
     }
 
-    fn drop_edge(&self, id: &str) -> Result<(), GraphError> {
-        match self.db.delete(Self::edge_key(id)) {
+    fn drop_edge(&self, edge_id: &str) -> Result<(), GraphError> {
+        let edge_data = self.db.get_pinned(Self::edge_key(edge_id))?.unwrap();
+        let edge: Edge = deserialize(&edge_data).unwrap();
+
+        let mut batch = WriteBatch::default();
+
+        batch.delete(Self::out_edge_key(&edge.from_node, edge_id));
+        batch.delete(Self::in_edge_key(&edge.to_node, edge_id));
+        batch.delete(Self::edge_key(edge_id));
+
+        match self.db.write(batch) {
             Ok(_) => Ok(()),
             Err(err) => Err(GraphError::from(err)),
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use crate::storage_core::graph::{Edge, GraphError, GraphMethods, Node, Value};
+    use std::collections::HashMap;
+
+    fn setup_temp_db() -> (HelixGraphStorage, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().to_str().unwrap();
+        let storage = HelixGraphStorage::new(db_path).unwrap();
+        (storage, temp_dir)
+    }
+
+    #[test]
+    fn test_create_node() {
+        let (storage, _temp_dir) = setup_temp_db();
+        let mut properties = HashMap::new();
+        properties.insert("name".to_string(), Value::String("test node".to_string()));
+
+        let node = storage.create_node("person", properties).unwrap();
+
+        let retrieved_node = storage.get_node(&node.id).unwrap();
+        assert_eq!(node.id, retrieved_node.id);
+        assert_eq!(node.label, "person");
+        assert_eq!(
+            node.properties.get("name").unwrap(),
+            &Value::String("test node".to_string())
+        );
+    }
+
+    #[test]
+    fn test_create_edge() {
+        let (storage, _temp_dir) = setup_temp_db();
+
+        let node1 = storage.create_node("person", HashMap::new()).unwrap();
+        let node2 = storage.create_node("person", HashMap::new()).unwrap();
+
+        let mut edge_props = HashMap::new();
+        edge_props.insert("weight".to_string(), Value::Integer(5));
+
+        let edge = storage
+            .create_edge("knows", &node1.id, &node2.id, edge_props)
+            .unwrap();
+
+        let retrieved_edge = storage.get_edge(&edge.id).unwrap();
+        assert_eq!(edge.id, retrieved_edge.id);
+        assert_eq!(edge.label, "knows");
+        assert_eq!(edge.from_node, node1.id);
+        assert_eq!(edge.to_node, node2.id);
+    }
+
+    #[test]
+    fn test_create_edge_with_nonexistent_nodes() {
+        let (storage, _temp_dir) = setup_temp_db();
+
+        let result = storage.create_edge("knows", "nonexistent1", "nonexistent2", HashMap::new());
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_drop_node() {
+        let (storage, _temp_dir) = setup_temp_db();
+
+        let node1 = storage.create_node("person", HashMap::new()).unwrap();
+        let node2 = storage.create_node("person", HashMap::new()).unwrap();
+        let node3 = storage.create_node("person", HashMap::new()).unwrap();
+
+        storage
+            .create_edge("knows", &node1.id, &node2.id, HashMap::new())
+            .unwrap();
+        storage
+            .create_edge("knows", &node3.id, &node1.id, HashMap::new())
+            .unwrap();
+
+        storage.drop_node(&node1.id).unwrap();
+
+        assert!(storage.get_node(&node1.id).is_err());
+    }
+
+    #[test]
+    fn test_drop_edge() {
+        let (storage, _temp_dir) = setup_temp_db();
+
+        let node1 = storage.create_node("person", HashMap::new()).unwrap();
+        let node2 = storage.create_node("person", HashMap::new()).unwrap();
+        let edge = storage
+            .create_edge("knows", &node1.id, &node2.id, HashMap::new())
+            .unwrap();
+
+        storage.drop_edge(&edge.id).unwrap();
+
+        assert!(storage.get_edge(&edge.id).is_err());
+    }
+
+    #[test]
+    fn test_check_exists() {
+        let (storage, _temp_dir) = setup_temp_db();
+
+        let node = storage.create_node("person", HashMap::new()).unwrap();
+        assert!(storage.check_exists(&node.id).unwrap());
+        assert!(!storage.check_exists("nonexistent").unwrap());
+    }
+
+    #[test]
+    fn test_get_temp_node() {
+        let (storage, _temp_dir) = setup_temp_db();
+
+        let node = storage.create_node("person", HashMap::new()).unwrap();
+
+        
+        let temp_node = storage.get_temp_node(&node.id).unwrap();
+
+        assert_eq!(node.id, temp_node.id);
+        assert_eq!(node.label, temp_node.label);
+    }
+
+    #[test]
+    fn test_multiple_edges_between_nodes() {
+        let (storage, _temp_dir) = setup_temp_db();
+
+
+        let node1 = storage.create_node("person", HashMap::new()).unwrap();
+        let node2 = storage.create_node("person", HashMap::new()).unwrap();
+
+        let edge1 = storage
+            .create_edge("knows", &node1.id, &node2.id, HashMap::new())
+            .unwrap();
+        let edge2 = storage
+            .create_edge("likes", &node1.id, &node2.id, HashMap::new())
+            .unwrap();
+
+        assert!(storage.get_edge(&edge1.id).is_ok());
+        assert!(storage.get_edge(&edge2.id).is_ok());
+    }
+
+    #[test]
+    fn test_node_with_properties() {
+        let (storage, _temp_dir) = setup_temp_db();
+
+        let mut properties = HashMap::new();
+        properties.insert("name".to_string(), Value::String("George".to_string()));
+        properties.insert("age".to_string(), Value::Integer(30));
+        properties.insert("active".to_string(), Value::Boolean(true));
+
+        let node = storage.create_node("person", properties).unwrap();
+        let retrieved_node = storage.get_node(&node.id).unwrap();
+
+        assert_eq!(
+            retrieved_node.properties.get("name").unwrap(),
+            &Value::String("George".to_string())
+        );
+        assert_eq!(
+            retrieved_node.properties.get("age").unwrap(),
+            &Value::Integer(22)
+        );
+        assert_eq!(
+            retrieved_node.properties.get("active").unwrap(),
+            &Value::Boolean(true)
+        );
     }
 }
