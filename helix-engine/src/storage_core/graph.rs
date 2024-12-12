@@ -18,10 +18,11 @@ pub struct Edge {
     pub properties: HashMap<String, Value>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub enum Value {
     String(String),
-    Number(f64),
+    Float(f64),
+    Integer(i32),
     Boolean(bool),
     Array(Vec<Value>),
     Null,
@@ -69,7 +70,7 @@ pub trait GraphMethods {
     fn drop_node(&self, id: &str) -> Result<(), GraphError>;
 
     /// Deletes an edge entry
-    fn drop_edge(&self, id: &str) -> Result<(), GraphError>;
+    fn drop_edge(&self, id: &str)  -> Result<(), GraphError>;
 }
 
 #[derive(Debug)]
