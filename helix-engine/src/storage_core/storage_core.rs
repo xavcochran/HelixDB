@@ -5,7 +5,7 @@ use rocksdb::{IteratorMode, Options, WriteBatch, WriteBatchWithTransaction, DB};
 
 use uuid::Uuid;
 
-use crate::storage_core::graph::{Edge, GraphError, GraphMethods, Node, Value};
+use crate::storage_core::graph_methods::{Edge, GraphError, GraphMethods, Node, Value};
 
 // Byte values of data-type key prefixes
 const NODE_PREFIX: &[u8] = b"n:";
@@ -234,7 +234,7 @@ impl GraphMethods for HelixGraphStorage {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    use crate::storage_core::graph::{Edge, GraphError, GraphMethods, Node, Value};
+    use crate::storage_core::graph_methods::{Edge, GraphError, GraphMethods, Node, Value};
     use std::collections::HashMap;
 
     fn setup_temp_db() -> (HelixGraphStorage, TempDir) {
@@ -373,7 +373,7 @@ mod tests {
 
         let mut properties = HashMap::new();
         properties.insert("name".to_string(), Value::String("George".to_string()));
-        properties.insert("age".to_string(), Value::Integer(30));
+        properties.insert("age".to_string(), Value::Integer(22));
         properties.insert("active".to_string(), Value::Boolean(true));
 
         let node = storage.create_node("person", properties).unwrap();

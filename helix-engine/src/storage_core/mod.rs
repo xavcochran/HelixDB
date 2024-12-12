@@ -1,2 +1,2 @@
 pub mod storage_core;
-pub mod graph;
+pub mod graph_methods;
