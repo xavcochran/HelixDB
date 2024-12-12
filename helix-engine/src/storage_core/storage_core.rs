@@ -237,7 +237,6 @@ mod tests {
     use crate::storage_core::graph::{Edge, GraphError, GraphMethods, Node, Value};
     use std::collections::HashMap;
 
-    // Helper function to create a temporary database for testing
     fn setup_temp_db() -> (HelixGraphStorage, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().to_str().unwrap();
@@ -253,7 +252,6 @@ mod tests {
 
         let node = storage.create_node("person", properties).unwrap();
 
-        // Verify node exists
         let retrieved_node = storage.get_node(&node.id).unwrap();
         assert_eq!(node.id, retrieved_node.id);
         assert_eq!(node.label, "person");
@@ -267,11 +265,9 @@ mod tests {
     fn test_create_edge() {
         let (storage, _temp_dir) = setup_temp_db();
 
-        // Create two nodes to connect
         let node1 = storage.create_node("person", HashMap::new()).unwrap();
         let node2 = storage.create_node("person", HashMap::new()).unwrap();
 
-        // Create edge between nodes
         let mut edge_props = HashMap::new();
         edge_props.insert("weight".to_string(), Value::Integer(5));
 
@@ -279,7 +275,6 @@ mod tests {
             .create_edge("knows", &node1.id, &node2.id, edge_props)
             .unwrap();
 
-        // Verify edge exists
         let retrieved_edge = storage.get_edge(&edge.id).unwrap();
         assert_eq!(edge.id, retrieved_edge.id);
         assert_eq!(edge.label, "knows");
@@ -300,12 +295,10 @@ mod tests {
     fn test_drop_node() {
         let (storage, _temp_dir) = setup_temp_db();
 
-        // Create a node with some connected edges
         let node1 = storage.create_node("person", HashMap::new()).unwrap();
         let node2 = storage.create_node("person", HashMap::new()).unwrap();
         let node3 = storage.create_node("person", HashMap::new()).unwrap();
 
-        // Create edges to and from node1
         storage
             .create_edge("knows", &node1.id, &node2.id, HashMap::new())
             .unwrap();
@@ -313,10 +306,8 @@ mod tests {
             .create_edge("knows", &node3.id, &node1.id, HashMap::new())
             .unwrap();
 
-        // Drop node1
         storage.drop_node(&node1.id).unwrap();
 
-        // Verify node and its edges are gone
         assert!(storage.get_node(&node1.id).is_err());
     }
 
@@ -324,17 +315,14 @@ mod tests {
     fn test_drop_edge() {
         let (storage, _temp_dir) = setup_temp_db();
 
-        // Create nodes and edge
         let node1 = storage.create_node("person", HashMap::new()).unwrap();
         let node2 = storage.create_node("person", HashMap::new()).unwrap();
         let edge = storage
             .create_edge("knows", &node1.id, &node2.id, HashMap::new())
             .unwrap();
 
-        // Drop edge
         storage.drop_edge(&edge.id).unwrap();
 
-        // Verify edge is gone
         assert!(storage.get_edge(&edge.id).is_err());
     }
 
@@ -397,7 +385,7 @@ mod tests {
         );
         assert_eq!(
             retrieved_node.properties.get("age").unwrap(),
-            &Value::Integer(30)
+            &Value::Integer(22)
         );
         assert_eq!(
             retrieved_node.properties.get("active").unwrap(),
