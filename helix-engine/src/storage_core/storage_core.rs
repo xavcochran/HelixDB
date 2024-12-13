@@ -5,7 +5,8 @@ use rocksdb::{IteratorMode, Options, WriteBatch, WriteBatchWithTransaction, DB};
 
 use uuid::Uuid;
 
-use crate::storage_core::graph_methods::{Edge, GraphError, GraphMethods, Node, Value};
+use crate::storage_core::storage_methods::StorageMethods;
+use crate::types::{Node, Edge, Value, GraphError};
 
 // Byte values of data-type key prefixes
 const NODE_PREFIX: &[u8] = b"n:";
@@ -78,7 +79,7 @@ impl HelixGraphStorage {
     }
 }
 
-impl GraphMethods for HelixGraphStorage {
+impl StorageMethods for HelixGraphStorage {
     fn check_exists(&self, id: &str) -> Result<bool, GraphError> {
         match self.db.get_pinned(Self::node_key(id)) {
             Ok(Some(_)) => Ok(true),
@@ -90,7 +91,7 @@ impl GraphMethods for HelixGraphStorage {
     fn get_temp_node(&self, id: &str) -> Result<Node, GraphError> {
         match self.db.get_pinned(Self::node_key(id)) {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
-            Ok(None) => Err(GraphError::Other(format!("Item not found!"))),
+            Ok(None) => Err(GraphError::New(format!("Item not found!"))),
             Err(err) => Err(GraphError::from(err)),
         }
     }
@@ -98,7 +99,7 @@ impl GraphMethods for HelixGraphStorage {
     fn get_temp_edge(&self, id: &str) -> Result<Edge, GraphError> {
         match self.db.get_pinned(Self::edge_key(id)) {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
-            Ok(None) => Err(GraphError::Other(format!("Item not found!"))),
+            Ok(None) => Err(GraphError::New(format!("Item not found!"))),
             Err(err) => Err(GraphError::from(err)),
         }
     }
@@ -106,14 +107,14 @@ impl GraphMethods for HelixGraphStorage {
     fn get_node(&self, id: &str) -> Result<Node, GraphError> {
         match self.db.get(Self::node_key(id)) {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
-            Ok(None) => Err(GraphError::Other(format!("Item not found!"))),
+            Ok(None) => Err(GraphError::New(format!("Item not found!"))),
             Err(err) => Err(GraphError::from(err)),
         }
     }
     fn get_edge(&self, id: &str) -> Result<Edge, GraphError> {
         match self.db.get([EDGE_PREFIX, id.as_bytes()].concat()) {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
-            Ok(None) => Err(GraphError::Other(format!("Item not found!"))),
+            Ok(None) => Err(GraphError::New(format!("Item not found!"))),
             Err(err) => Err(GraphError::from(err)),
         }
     }
@@ -147,7 +148,7 @@ impl GraphMethods for HelixGraphStorage {
     ) -> Result<Edge, GraphError> {
         // look at creating check function that uses pinning
         if !self.get_node(from_node).is_ok() || !self.get_node(to_node).is_ok() {
-            return Err(GraphError::Other(format!("One or both nodes do not exist")));
+            return Err(GraphError::New(format!("One or both nodes do not exist")));
         }
 
         let edge = Edge {
@@ -234,7 +235,8 @@ impl GraphMethods for HelixGraphStorage {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    use crate::storage_core::graph_methods::{Edge, GraphError, GraphMethods, Node, Value};
+    use crate::storage_core::storage_methods::StorageMethods;
+    use crate::types::{Node, Edge, Value, GraphError};
     use std::collections::HashMap;
 
     fn setup_temp_db() -> (HelixGraphStorage, TempDir) {

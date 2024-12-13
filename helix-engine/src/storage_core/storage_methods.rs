@@ -1,34 +1,9 @@
 use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use crate::types::{Node, Edge, Value, GraphError};
 
-#[derive(Serialize, Deserialize)]
-pub struct Node {
-    pub id: String,
-    pub label: String,
-    pub properties: HashMap<String, Value>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Edge {
-    pub id: String,
-    pub label: String,
-    pub from_node: String,
-    pub to_node: String,
-    pub properties: HashMap<String, Value>,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub enum Value {
-    String(String),
-    Float(f64),
-    Integer(i32),
-    Boolean(bool),
-    Array(Vec<Value>),
-    Null,
-}
-
-pub trait GraphMethods {
+pub trait StorageMethods {
     /// Checks whether an entry with a given id exists.
     /// Works for nodes or edges.
     fn check_exists(&self, id: &str) -> Result<bool, GraphError>;
@@ -71,29 +46,4 @@ pub trait GraphMethods {
 
     /// Deletes an edge entry
     fn drop_edge(&self, id: &str)  -> Result<(), GraphError>;
-}
-
-#[derive(Debug)]
-pub enum GraphError {
-    Io(std::io::Error),
-    Other(String),
-    ConnectionError(String, std::io::Error),
-}
-
-impl fmt::Display for GraphError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            GraphError::Io(e) => write!(f, "IO error: {}", e),
-            GraphError::Other(msg) => write!(f, "Error: {}", msg),
-            GraphError::ConnectionError(msg, e) => {
-                write!(f, "Error: {}", format!("{} {}", msg, e))
-            }
-        }
-    }
-}
-
-impl From<rocksdb::Error> for GraphError {
-    fn from(error: rocksdb::Error) -> Self {
-        GraphError::Other(error.into_string())
-    }
 }
