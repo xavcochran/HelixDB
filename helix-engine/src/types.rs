@@ -2,14 +2,14 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Node {
     pub id: String,
     pub label: String,
     pub properties: HashMap<String, Value>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Edge {
     pub id: String,
     pub label: String,
