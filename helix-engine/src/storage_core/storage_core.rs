@@ -119,6 +119,54 @@ impl StorageMethods for HelixGraphStorage {
         }
     }
 
+    fn get_out_edges(&self, node_id: &str, edge_label: &str) -> Result<Vec<Edge>, GraphError> {
+        let mut edges = Vec::new();
+        // get out edges
+        let out_prefix = Self::out_edge_key(node_id, "");
+        let iter = self
+            .db
+            .iterator(IteratorMode::From(&out_prefix, rocksdb::Direction::Forward));
+        
+        // get edge values
+        for result in iter {
+            let (key, _) = result?;
+            if !key.starts_with(&out_prefix) {
+                break;
+            }
+
+            let edge_id = String::from_utf8(key[out_prefix.len()..].to_vec()).unwrap();
+            let edge = self.get_edge(&edge_id).unwrap();
+            if(edge.label.as_str() == edge_label) {
+                edges.push(edge);
+            }
+        }
+        Ok(edges)
+    }
+
+    fn get_in_edges(&self, node_id: &str, edge_label: &str) -> Result<Vec<Edge>, GraphError> {
+        let mut edges = Vec::new();
+        // get in edges
+        let in_prefix = Self::in_edge_key(node_id, "");
+        let iter = self
+            .db
+            .iterator(IteratorMode::From(&in_prefix, rocksdb::Direction::Forward));
+        
+        // get edge values
+        for result in iter {
+            let (key, _) = result?;
+            if !key.starts_with(&in_prefix) {
+                break;
+            }
+
+            let edge_id = String::from_utf8(key[in_prefix.len()..].to_vec()).unwrap();
+            let edge = self.get_edge(&edge_id).unwrap();
+            if(edge.label.as_str() == edge_label) {
+                edges.push(edge);
+            }
+        }
+        Ok(edges)
+    }
+
     fn create_node(
         &self,
         label: &str,

@@ -7,12 +7,6 @@ pub trait StorageMethods {
     /// Checks whether an entry with a given id exists.
     /// Works for nodes or edges.
     fn check_exists(&self, id: &str) -> Result<bool, GraphError>;
-
-    /// Gets a node object for a given node id
-    fn get_node(&self, id: &str) -> Result<Node, GraphError>;
-    /// Gets a edge object for a given edge id
-    fn get_edge(&self, id: &str) -> Result<Edge, GraphError>;
-
     /// Gets a node object for a given node id without copying its underlying data. 
     /// 
     /// This should only used when fetched data is only needed temporarily
@@ -24,6 +18,19 @@ pub trait StorageMethods {
     /// This should only used when fetched data is only needed temporarily
     /// as underlying data is pinned.
     fn get_temp_edge(&self, id: &str) -> Result<Edge, GraphError>;
+
+
+    /// Gets a node object for a given node id
+    fn get_node(&self, id: &str) -> Result<Node, GraphError>;
+    /// Gets a edge object for a given edge id
+    fn get_edge(&self, id: &str) -> Result<Edge, GraphError>;
+
+    /// Returns a list of edge objects of the outgoing edges from a given node 
+    fn get_out_edges(&self, node_id: &str, edge_label: &str) -> Result<Vec<Edge>, GraphError>;
+
+    /// Returns a list of edge objects of the incoming edges from a given node
+    fn get_in_edges(&self, node_id: &str, edge_label: &str) -> Result<Vec<Edge>, GraphError>;
+    
 
     /// Creates a node entry
     fn create_node(

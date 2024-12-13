@@ -6,6 +6,7 @@ use crate::storage_core::storage_methods::StorageMethods;
 
 pub trait GraphMethods {
 
+    
 }
 
 
