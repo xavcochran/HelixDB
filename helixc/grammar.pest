@@ -23,7 +23,7 @@ return_clause = { "RETURN" ~ return_items }
 // Traversal expressions
 child_expression = { ("::") ~ identifier }
 traversal_expression = { ("::") ~ identifier ~ ("(" ~ identifier ~ ")")? ~ child_expression* }
-source_traversal = {(("V") | ("E")) ~ traversal_expression? }
+source_traversal = {("V" | "E") ~ traversal_expression? }
 
 // Clauses
 traversal_assignment = { (identifier ~ "<-") }
@@ -36,7 +36,12 @@ query_body = { get_clause ~ return_clause }
 // Schema elements
 schema_property = { identifier ~ ":" ~ type_def }
 schema_properties = { schema_property? ~ ((",") ~schema_property)* }
-edge_property = { ("From") ~ ":" ~ identifier ~ "," ~ ("To") ~ ":" ~ identifier, ("Properties") ~ ("{") ~ schema_properties ~ ("}") }
+edge_property = { 
+    ("From") ~ ":" ~ identifier ~ "," ~ 
+    ("To") ~ ":" ~ identifier ~  "," ~ ("Properties") ~ ("{") ~ 
+    schema_properties ~
+    ("}") 
+}
 
 // Schema
 node_schema = { "V::" ~ identifier ~ "{" ~ schema_properties ~ "}" }
@@ -45,3 +50,5 @@ edge_schema = { "E::" ~ identifier ~ "{" ~ edge_property ~ "}" }
 // Top level
 query = { "QUERY" ~ identifier ~ parameters? ~ "=>" ~ query_body }
 schema = { node_schema | edge_schema }
+
+source = { (query | schema)* }
