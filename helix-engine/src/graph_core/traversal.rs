@@ -132,7 +132,7 @@ impl TraversalSteps for TraversalBuilder {
             for node in nodes {
                 let edges = storage.get_in_edges(&node.id, edge_label).unwrap();
                 for edge in edges {
-                    let node_obj = storage.get_node(&edge.to_node).unwrap();
+                    let node_obj = storage.get_node(&edge.from_node).unwrap();
                     next_nodes.push(node_obj);
                 }
             }
@@ -159,189 +159,200 @@ impl TraversalSteps for TraversalBuilder {
 
 // need to account for multiple nodes or edges at a given traversal step
 //
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use tempfile::TempDir;
-    use crate::graph_core::traversal::TraversalBuilder;
-    use crate::storage_core::storage_methods::StorageMethods;
-    use crate::types::{Node, Edge, Value, GraphError};
+    use std::collections::HashMap;
 
     fn setup_test_db() -> (HelixGraphStorage, TempDir) {
         let temp_dir = TempDir::new().unwrap();
-        let storage = HelixGraphStorage::new(temp_dir.path().to_str().unwrap()).unwrap();
+        let db_path = temp_dir.path().to_str().unwrap();
+        let storage = HelixGraphStorage::new(db_path).unwrap();
         (storage, temp_dir)
     }
 
     #[test]
-    fn test_create_and_get_node() {
+    fn test_add_v() {
         let (storage, _temp_dir) = setup_test_db();
-        let mut properties = HashMap::new();
-        properties.insert("name".to_string(), Value::String("test node".to_string()));
+        let mut traversal = TraversalBuilder::new(vec![]);
         
-        let node = storage.create_node("person", properties).unwrap();
+        traversal.add_v(&storage, "person");
         
-        // Test get_node
-        let retrieved_node = storage.get_node(&node.id).unwrap();
-        assert_eq!(node.id, retrieved_node.id);
-        assert_eq!(node.label, "person");
-        assert_eq!(
-            retrieved_node.properties.get("name").unwrap(),
-            &Value::String("test node".to_string())
-        );
+        match &traversal.current_step[0] {
+            TraversalValue::SingleNode(node) => {
+                assert_eq!(node.label, "person");
+            }
+            _ => panic!("Expected SingleNode value"),
+        }
     }
 
     #[test]
-    fn test_create_and_get_edge() {
+    fn test_add_e() {
         let (storage, _temp_dir) = setup_test_db();
         
-        // Create two nodes to connect
         let node1 = storage.create_node("person", HashMap::new()).unwrap();
         let node2 = storage.create_node("person", HashMap::new()).unwrap();
         
-        // Create edge
-        let mut edge_props = HashMap::new();
-        edge_props.insert("weight".to_string(), Value::Float(1.0));
+        let mut traversal = TraversalBuilder::new(vec![]);
+        traversal.add_e(&storage, "knows", &node1.id, &node2.id);
         
-        let edge = storage.create_edge(
-            "knows",
-            &node1.id,
-            &node2.id,
-            edge_props
-        ).unwrap();
-        
-        // Test get_edge
-        let retrieved_edge = storage.get_edge(&edge.id).unwrap();
-        assert_eq!(edge.id, retrieved_edge.id);
-        assert_eq!(edge.label, "knows");
-        assert_eq!(edge.from_node, node1.id);
-        assert_eq!(edge.to_node, node2.id);
+        match &traversal.current_step[0] {
+            TraversalValue::SingleEdge(edge) => {
+                assert_eq!(edge.label, "knows");
+                assert_eq!(edge.from_node, node1.id);
+                assert_eq!(edge.to_node, node2.id);
+            }
+            _ => panic!("Expected SingleEdge value"),
+        }
     }
 
     #[test]
-    fn test_get_out_edges() {
+    fn test_out() {
         let (storage, _temp_dir) = setup_test_db();
         
-        // Create nodes
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("person", HashMap::new()).unwrap();
-        let node3 = storage.create_node("person", HashMap::new()).unwrap();
+        // Create graph: (person1)-[knows]->(person2)-[knows]->(person3)
+        let person1 = storage.create_node("person", HashMap::new()).unwrap();
+        let person2 = storage.create_node("person", HashMap::new()).unwrap();
+        let person3 = storage.create_node("person", HashMap::new()).unwrap();
         
-        // Create edges
-        storage.create_edge("knows", &node1.id, &node2.id, HashMap::new()).unwrap();
-        storage.create_edge("knows", &node1.id, &node3.id, HashMap::new()).unwrap();
+        storage.create_edge("knows", &person1.id, &person2.id, HashMap::new()).unwrap();
+        storage.create_edge("knows", &person2.id, &person3.id, HashMap::new()).unwrap();
         
-        // Test out edges
-        let out_edges = storage.get_out_edges(&node1.id, "knows").unwrap();
-        assert_eq!(out_edges.len(), 2);
-    }
-
-    #[test]
-    fn test_get_in_edges() {
-        let (storage, _temp_dir) = setup_test_db();
-        
-        // Create nodes
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("person", HashMap::new()).unwrap();
-        let node3 = storage.create_node("person", HashMap::new()).unwrap();
-        
-        // Create edges pointing to node1
-        storage.create_edge("knows", &node2.id, &node1.id, HashMap::new()).unwrap();
-        storage.create_edge("knows", &node3.id, &node1.id, HashMap::new()).unwrap();
-        
-        // Test in edges
-        let in_edges = storage.get_in_edges(&node1.id, "knows").unwrap();
-        assert_eq!(in_edges.len(), 2);
-    }
-
-    #[test]
-    fn test_drop_node() {
-        let (storage, _temp_dir) = setup_test_db();
-        
-        // Create nodes
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("person", HashMap::new()).unwrap();
-        
-        // Create edge
-        storage.create_edge("knows", &node1.id, &node2.id, HashMap::new()).unwrap();
-        
-        // Drop node1
-        storage.drop_node(&node1.id).unwrap();
-        
-        // Verify node1 is gone
-        assert!(storage.get_node(&node1.id).is_err());
-        
-        // Verify node2 still exists
-        assert!(storage.get_node(&node2.id).is_ok());
-    }
-
-    #[test]
-    fn test_drop_edge() {
-        let (storage, _temp_dir) = setup_test_db();
-        
-        // Create nodes
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("person", HashMap::new()).unwrap();
-        
-        // Create edge
-        let edge = storage.create_edge(
-            "knows",
-            &node1.id,
-            &node2.id,
-            HashMap::new()
-        ).unwrap();
-        
-        // Drop edge
-        storage.drop_edge(&edge.id).unwrap();
-        
-        // Verify edge is gone
-        assert!(storage.get_edge(&edge.id).is_err());
-        
-        // Verify nodes still exist
-        assert!(storage.get_node(&node1.id).is_ok());
-        assert!(storage.get_node(&node2.id).is_ok());
-    }
-
-    #[test]
-    fn test_traversal_builder() {
-        let (storage, _temp_dir) = setup_test_db();
-        
-        // Create test graph
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("person", HashMap::new()).unwrap();
-        let node3 = storage.create_node("person", HashMap::new()).unwrap();
-        
-        storage.create_edge("knows", &node1.id, &node2.id, HashMap::new()).unwrap();
-        storage.create_edge("knows", &node2.id, &node3.id, HashMap::new()).unwrap();
-        
-        // Test traversal
-        let mut traversal = TraversalBuilder::new(vec![node1.clone()]);
-        
-        // Test out traversal
+        let mut traversal = TraversalBuilder::new(vec![person1.clone()]);
         traversal.out(&storage, "knows");
-        if let TraversalValue::NodeArray(nodes) = &traversal.current_step[0] {
-            assert_eq!(nodes.len(), 1);
-            assert_eq!(nodes[0].id, node2.id);
-        }
         
-        // Test out_e traversal
-        traversal = TraversalBuilder::new(vec![node1.clone()]);
-        traversal.out_e(&storage, "knows");
-        if let TraversalValue::EdgeArray(edges) = &traversal.current_step[0] {
-            assert_eq!(edges.len(), 1);
-            assert_eq!(edges[0].to_node, node2.id);
+        match &traversal.current_step[0] {
+            TraversalValue::NodeArray(nodes) => {
+                assert_eq!(nodes.len(), 1);
+                assert_eq!(nodes[0].id, person2.id);
+            }
+            _ => panic!("Expected NodeArray value"),
         }
     }
 
     #[test]
-    fn test_check_exists() {
+    fn test_out_e() {
         let (storage, _temp_dir) = setup_test_db();
         
-        let node = storage.create_node("person", HashMap::new()).unwrap();
+        // Create graph: (person1)-[knows]->(person2)
+        let person1 = storage.create_node("person", HashMap::new()).unwrap();
+        let person2 = storage.create_node("person", HashMap::new()).unwrap();
         
-        assert!(storage.check_exists(&node.id).unwrap());
-        assert!(!storage.check_exists("non-existent-id").unwrap());
+        let edge = storage.create_edge("knows", &person1.id, &person2.id, HashMap::new()).unwrap();
+        
+        let mut traversal = TraversalBuilder::new(vec![person1.clone()]);
+        traversal.out_e(&storage, "knows");
+        
+        match &traversal.current_step[0] {
+            TraversalValue::EdgeArray(edges) => {
+                assert_eq!(edges.len(), 1);
+                assert_eq!(edges[0].id, edge.id);
+                assert_eq!(edges[0].label, "knows");
+            }
+            _ => panic!("Expected EdgeArray value"),
+        }
+    }
+
+    #[test]
+    fn test_in() {
+        let (storage, _temp_dir) = setup_test_db();
+        
+        // Create graph: (person1)-[knows]->(person2)
+        let person1 = storage.create_node("person", HashMap::new()).unwrap();
+        let person2 = storage.create_node("person", HashMap::new()).unwrap();
+        
+        storage.create_edge("knows", &person1.id, &person2.id, HashMap::new()).unwrap();
+        
+        let mut traversal = TraversalBuilder::new(vec![person2.clone()]);
+        traversal.in_(&storage, "knows");
+        
+        match &traversal.current_step[0] {
+            TraversalValue::NodeArray(nodes) => {
+                assert_eq!(nodes.len(), 1);
+                assert_eq!(nodes[0].id, person1.id );
+            }
+            _ => panic!("Expected NodeArray value"),
+        }
+    }
+
+    #[test]
+    fn test_in_e() {
+        let (storage, _temp_dir) = setup_test_db();
+        
+        // Create test graph: (person1)-[knows]->(person2)
+        let person1 = storage.create_node("person", HashMap::new()).unwrap();
+        let person2 = storage.create_node("person", HashMap::new()).unwrap();
+        
+        let edge = storage.create_edge("knows", &person1.id, &person2.id, HashMap::new()).unwrap();
+        
+        let mut traversal = TraversalBuilder::new(vec![person2.clone()]);
+        traversal.in_e(&storage, "knows");
+        
+        match &traversal.current_step[0] {
+            TraversalValue::EdgeArray(edges) => {
+                assert_eq!(edges.len(), 1);
+                assert_eq!(edges[0].id, edge.id);
+                assert_eq!(edges[0].label, "knows");
+            }
+            _ => panic!("Expected EdgeArray value"),
+        }
+    }
+
+    #[test]
+    fn test_traversal_validation() {
+        let (storage, _temp_dir) = setup_test_db();
+        let mut traversal = TraversalBuilder::new(vec![]);
+        
+        let node1 = storage.create_node("person", HashMap::new()).unwrap();
+        let node2 = storage.create_node("person", HashMap::new()).unwrap();
+        let edge = storage.create_edge("knows", &node1.id, &node2.id, HashMap::new()).unwrap();
+        traversal.current_step = vec![TraversalValue::SingleEdge(edge)];
+        
+        assert!(traversal.check_is_valid_node_traversal("test").is_err());
+        
+        traversal.current_step = vec![TraversalValue::SingleNode(node1)];
+        assert!(traversal.check_is_valid_edge_traversal("test").is_err());
+    }
+
+    #[test]
+    fn test_complex_traversal() {
+        let (storage, _temp_dir) = setup_test_db();
+        
+        // Graph structure:
+        // (person1)-[knows]->(person2)-[likes]->(person3)
+        //     ^                                    |
+        //     |                                    |
+        //     +--------------------[follows]-------+
+        
+        let person1 = storage.create_node("person", HashMap::new()).unwrap();
+        let person2 = storage.create_node("person", HashMap::new()).unwrap();
+        let person3 = storage.create_node("person", HashMap::new()).unwrap();
+        
+        storage.create_edge("knows", &person1.id, &person2.id, HashMap::new()).unwrap();
+        storage.create_edge("likes", &person2.id, &person3.id, HashMap::new()).unwrap();
+        storage.create_edge("follows", &person3.id, &person1.id, HashMap::new()).unwrap();
+        
+        let mut traversal = TraversalBuilder::new(vec![person1.clone()]);
+        
+        traversal.out(&storage, "knows");
+        
+        match &traversal.current_step[0] {
+            TraversalValue::NodeArray(nodes) => {
+                assert_eq!(nodes.len(), 1);
+                assert_eq!(nodes[0].id, person2.id);
+            }
+            _ => panic!("Expected NodeArray value"),
+        }
+        
+        traversal.out(&storage, "likes");
+        
+        match &traversal.current_step[0] {
+            TraversalValue::NodeArray(nodes) => {
+                assert_eq!(nodes.len(), 1);
+                assert_eq!(nodes[0].id, person3.id);
+            }
+            _ => panic!("Expected NodeArray value"),
+        }
     }
 }
