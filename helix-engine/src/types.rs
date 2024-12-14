@@ -2,14 +2,14 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Node {
     pub id: String,
     pub label: String,
     pub properties: HashMap<String, Value>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Edge {
     pub id: String,
     pub label: String,
@@ -18,7 +18,7 @@ pub struct Edge {
     pub properties: HashMap<String, Value>,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub enum Value {
     String(String),
     Float(f64),
@@ -33,6 +33,7 @@ pub enum GraphError {
     Io(std::io::Error),
     GraphConnectionError(String, std::io::Error),
     StorageConnectionError(String, std::io::Error),
+    TraversalError(String),
     New(String)
 }
 
@@ -46,6 +47,7 @@ impl fmt::Display for GraphError {
             GraphError::GraphConnectionError(msg, e) => {
                 write!(f, "Error: {}", format!("{} {}", msg, e))
             },
+            GraphError::TraversalError(msg) => write!(f, "Traversal error: {}", msg),
             GraphError::New(msg) => write!(f, "Graph error: {}", msg),
         }
     }

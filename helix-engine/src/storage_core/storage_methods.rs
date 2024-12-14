@@ -31,6 +31,10 @@ pub trait StorageMethods {
     /// Returns a list of edge objects of the incoming edges from a given node
     fn get_in_edges(&self, node_id: &str, edge_label: &str) -> Result<Vec<Edge>, GraphError>;
     
+    /// Returns all nodes in the graph
+    fn get_all_nodes(&self) -> Result<Vec<Node>, GraphError>;
+    /// Returns all edges in the graph
+    fn get_all_edges(&self) -> Result<Vec<Edge>, GraphError>;
 
     /// Creates a node entry
     fn create_node(
