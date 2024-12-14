@@ -1,7 +1,8 @@
 use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::types::{Node, Edge, Value, GraphError};
+use crate::types::GraphError;
+use protocol::{Node, Edge, Value};
 
 pub trait StorageMethods {
     /// Checks whether an entry with a given id exists.

@@ -11,6 +11,7 @@ uuid = { version = "1.11.0", features = ["v4", "fast-rng"] }
 tempfile = "3.2"
 function_name = "0.3.0"
 rand = "0.8.5"
+protocol = { path = "../protocol" }
 
 [lib]
 name = "helix_engine"

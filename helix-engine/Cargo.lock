@@ -160,6 +160,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "function_name",
+ "protocol",
  "rand",
  "rocksdb",
  "serde",
@@ -306,6 +307,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37d3544b3f2748c54e147655edb5025752e2303145b5aefb3c3ea2c78b973bb0"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

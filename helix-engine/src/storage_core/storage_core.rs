@@ -6,7 +6,8 @@ use rocksdb::{IteratorMode, Options, WriteBatch, WriteBatchWithTransaction, DB};
 use uuid::Uuid;
 
 use crate::storage_core::storage_methods::StorageMethods;
-use crate::types::{Edge, GraphError, Node, Value};
+use crate::types::GraphError;
+use protocol::{Edge, Node, Value};
 
 // Byte values of data-type key prefixes
 const NODE_PREFIX: &[u8] = b"n:";
@@ -15,8 +16,6 @@ const NODE_LABEL_PREFIX: &[u8] = b"nl:";
 const EDGE_LABEL_PREFIX: &[u8] = b"el:";
 const OUT_EDGES_PREFIX: &[u8] = b"o:";
 const IN_EDGES_PREFIX: &[u8] = b"i:";
-
-
 
 pub struct HelixGraphStorage {
     db: DB,
@@ -173,46 +172,48 @@ impl StorageMethods for HelixGraphStorage {
         let mut edges = Vec::new();
         let mut nodes = Vec::new();
         let mut node_ids = std::collections::HashSet::new();
-        
+
         // Prefetch out edges
         let out_prefix = Self::out_edge_key(node_id, "");
-        let iter = self.db.iterator(IteratorMode::From(&out_prefix, rocksdb::Direction::Forward));
-        
+        let iter = self
+            .db
+            .iterator(IteratorMode::From(&out_prefix, rocksdb::Direction::Forward));
+
         // Collect all relevant edges and node IDs
         for result in iter {
             let (key, _) = result?;
             if !key.starts_with(&out_prefix) {
                 break;
             }
-            
+
             let edge_id = String::from_utf8(key[out_prefix.len()..].to_vec()).unwrap();
             let edge = self.get_edge(&edge_id)?;
-            
+
             if edge.label == edge_label {
                 edges.push(edge.clone());
                 node_ids.insert(edge.to_node.clone());
             }
         }
-        
+
         // Batch fetch all connected nodes
         for node_id in node_ids {
             if let Ok(node) = self.get_node(&node_id) {
                 nodes.push(node);
             }
         }
-        
+
         Ok(nodes)
     }
 
     fn get_all_nodes(&self) -> Result<Vec<Node>, GraphError> {
         let node_prefix = Self::node_key("");
         let mut nodes = Vec::new();
-        
+
         let iter = self.db.iterator(IteratorMode::From(
             &node_prefix,
             rocksdb::Direction::Forward,
         ));
-    
+
         for result in iter {
             let (key, value) = result?;
             if !key.starts_with(&node_prefix) {
@@ -220,19 +221,19 @@ impl StorageMethods for HelixGraphStorage {
             }
             nodes.push(deserialize(&value).unwrap());
         }
-        
+
         Ok(nodes)
     }
 
     fn get_all_edges(&self) -> Result<Vec<Edge>, GraphError> {
         let edge_prefix = Self::edge_key("");
         let mut edges = Vec::new();
-        
+
         let iter = self.db.iterator(IteratorMode::From(
             &edge_prefix,
             rocksdb::Direction::Forward,
         ));
-    
+
         for result in iter {
             let (key, value) = result?;
             if !key.starts_with(&edge_prefix) {
@@ -240,7 +241,7 @@ impl StorageMethods for HelixGraphStorage {
             }
             edges.push(deserialize(&value).unwrap());
         }
-        
+
         Ok(edges)
     }
 
@@ -360,10 +361,10 @@ mod tests {
     use super::*;
     use crate::props;
     use crate::storage_core::storage_methods::StorageMethods;
-    use crate::types::{Edge, GraphError, Node, Value};
+    use protocol::Value;
+    use rocksdb::properties;
     use std::collections::HashMap;
     use std::iter;
-    use rocksdb::properties;
     use tempfile::TempDir;
 
     fn setup_temp_db() -> (HelixGraphStorage, TempDir) {
@@ -399,7 +400,7 @@ mod tests {
         let node1 = storage.create_node("person", props!()).unwrap();
         let node2 = storage.create_node("person", props!()).unwrap();
 
-        let mut edge_props = props!{
+        let mut edge_props = props! {
             "age" => 22,
         };
 
@@ -547,43 +548,46 @@ mod tests {
     }
 
     #[test]
-fn test_get_all_edges() {
-    let (storage, _temp_dir) = setup_temp_db();
-    
-    let node1 = storage.create_node("person", props!()).unwrap();
-    let node2 = storage.create_node("person", props!()).unwrap();
-    let node3 = storage.create_node("person", props!()).unwrap();
+    fn test_get_all_edges() {
+        let (storage, _temp_dir) = setup_temp_db();
 
-    let edge1 = storage.create_edge("knows", &node1.id, &node2.id, props!()).unwrap();
-    let edge2 = storage.create_edge("likes", &node2.id, &node3.id, props!()).unwrap();
-    let edge3 = storage.create_edge("follows", &node1.id, &node3.id, props!()).unwrap();
+        let node1 = storage.create_node("person", props!()).unwrap();
+        let node2 = storage.create_node("person", props!()).unwrap();
+        let node3 = storage.create_node("person", props!()).unwrap();
 
-    let edges = storage.get_all_edges().unwrap();
+        let edge1 = storage
+            .create_edge("knows", &node1.id, &node2.id, props!())
+            .unwrap();
+        let edge2 = storage
+            .create_edge("likes", &node2.id, &node3.id, props!())
+            .unwrap();
+        let edge3 = storage
+            .create_edge("follows", &node1.id, &node3.id, props!())
+            .unwrap();
 
-    assert_eq!(edges.len(), 3);
+        let edges = storage.get_all_edges().unwrap();
 
-    let edge_ids: Vec<String> = edges.iter()
-        .map(|e| e.id.clone())
-        .collect();
+        assert_eq!(edges.len(), 3);
 
-    assert!(edge_ids.contains(&edge1.id));
-    assert!(edge_ids.contains(&edge2.id));
-    assert!(edge_ids.contains(&edge3.id));
+        let edge_ids: Vec<String> = edges.iter().map(|e| e.id.clone()).collect();
 
-    let labels: Vec<String> = edges.iter()
-        .map(|e| e.label.clone())
-        .collect();
+        assert!(edge_ids.contains(&edge1.id));
+        assert!(edge_ids.contains(&edge2.id));
+        assert!(edge_ids.contains(&edge3.id));
 
-    assert!(labels.contains(&"knows".to_string()));
-    assert!(labels.contains(&"likes".to_string()));
-    assert!(labels.contains(&"follows".to_string()));
+        let labels: Vec<String> = edges.iter().map(|e| e.label.clone()).collect();
 
-    let connections: Vec<(String, String)> = edges.iter()
-        .map(|e| (e.from_node.clone(), e.to_node.clone()))
-        .collect();
+        assert!(labels.contains(&"knows".to_string()));
+        assert!(labels.contains(&"likes".to_string()));
+        assert!(labels.contains(&"follows".to_string()));
 
-    assert!(connections.contains(&(node1.id.clone(), node2.id.clone()))); 
-    assert!(connections.contains(&(node2.id.clone(), node3.id.clone()))); 
-    assert!(connections.contains(&(node1.id.clone(), node3.id.clone())));
-}
+        let connections: Vec<(String, String)> = edges
+            .iter()
+            .map(|e| (e.from_node.clone(), e.to_node.clone()))
+            .collect();
+
+        assert!(connections.contains(&(node1.id.clone(), node2.id.clone())));
+        assert!(connections.contains(&(node2.id.clone(), node3.id.clone())));
+        assert!(connections.contains(&(node1.id.clone(), node3.id.clone())));
+    }
 }

@@ -4,7 +4,8 @@ pub mod macros {
     ///
     /// ## Example Use
     /// ```rust
-    /// use helix_engine::{props, types::Value};
+    /// use helix_engine::props;
+    /// use protocol::Value;
     ///
     /// let properties: Vec<(String, Value)> = props! {
     ///     "name" => "Will",

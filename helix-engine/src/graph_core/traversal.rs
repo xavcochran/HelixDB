@@ -1,7 +1,8 @@
 use crate::{
-    props, storage_core::{storage_core::HelixGraphStorage, storage_methods::StorageMethods}, types::{Edge, GraphError, Node, Value}
+    props, storage_core::{storage_core::HelixGraphStorage, storage_methods::StorageMethods}, types::GraphError
     
 };
+use protocol::{Node, Edge, Value};
 use function_name::named;
 use rocksdb::properties;
 use std::collections::HashMap;
