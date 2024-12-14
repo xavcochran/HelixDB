@@ -16,6 +16,8 @@ const EDGE_LABEL_PREFIX: &[u8] = b"el:";
 const OUT_EDGES_PREFIX: &[u8] = b"o:";
 const IN_EDGES_PREFIX: &[u8] = b"i:";
 
+
+
 pub struct HelixGraphStorage {
     db: DB,
 }
@@ -35,28 +37,28 @@ impl HelixGraphStorage {
     }
 
     /// Creates node key using the prefix and given id
-    fn node_key(id: &str) -> Vec<u8> {
+    pub fn node_key(id: &str) -> Vec<u8> {
         [NODE_PREFIX, id.as_bytes()].concat()
     }
 
     /// Creates edge key using the prefix and given id
-    fn edge_key(id: &str) -> Vec<u8> {
+    pub fn edge_key(id: &str) -> Vec<u8> {
         [EDGE_PREFIX, id.as_bytes()].concat()
     }
 
     /// Creates node label key using the prefix, the given label, and id
-    fn node_label_key(label: &str, id: &str) -> Vec<u8> {
+    pub fn node_label_key(label: &str, id: &str) -> Vec<u8> {
         [NODE_LABEL_PREFIX, label.as_bytes(), b":", id.as_bytes()].concat()
     }
 
     /// Creates edge label key using the prefix, the given label, and  id
-    fn edge_label_key(label: &str, id: &str) -> Vec<u8> {
+    pub fn edge_label_key(label: &str, id: &str) -> Vec<u8> {
         [EDGE_LABEL_PREFIX, label.as_bytes(), b":", id.as_bytes()].concat()
     }
 
     /// Creates key for an outgoing edge using the prefix, source node id, and edge id
     /// 35 Bytes
-    fn out_edge_key(source_node_id: &str, edge_id: &str) -> Vec<u8> {
+    pub fn out_edge_key(source_node_id: &str, edge_id: &str) -> Vec<u8> {
         [
             OUT_EDGES_PREFIX,
             source_node_id.as_bytes(),
@@ -68,7 +70,7 @@ impl HelixGraphStorage {
 
     /// Creates key for an incoming edge using the prefix, sink node id, and edge id
     /// 35 Bytes
-    fn in_edge_key(sink_node_id: &str, edge_id: &str) -> Vec<u8> {
+    pub fn in_edge_key(sink_node_id: &str, edge_id: &str) -> Vec<u8> {
         [
             OUT_EDGES_PREFIX,
             sink_node_id.as_bytes(),
@@ -167,6 +169,41 @@ impl StorageMethods for HelixGraphStorage {
         Ok(edges)
     }
 
+    fn get_out_nodes(&self, node_id: &str, edge_label: &str) -> Result<Vec<Node>, GraphError> {
+        let mut edges = Vec::new();
+        let mut nodes = Vec::new();
+        let mut node_ids = std::collections::HashSet::new();
+        
+        // Prefetch out edges
+        let out_prefix = Self::out_edge_key(node_id, "");
+        let iter = self.db.iterator(IteratorMode::From(&out_prefix, rocksdb::Direction::Forward));
+        
+        // Collect all relevant edges and node IDs
+        for result in iter {
+            let (key, _) = result?;
+            if !key.starts_with(&out_prefix) {
+                break;
+            }
+            
+            let edge_id = String::from_utf8(key[out_prefix.len()..].to_vec()).unwrap();
+            let edge = self.get_edge(&edge_id)?;
+            
+            if edge.label == edge_label {
+                edges.push(edge.clone());
+                node_ids.insert(edge.to_node.clone());
+            }
+        }
+        
+        // Batch fetch all connected nodes
+        for node_id in node_ids {
+            if let Ok(node) = self.get_node(&node_id) {
+                nodes.push(node);
+            }
+        }
+        
+        Ok(nodes)
+    }
+
     fn get_all_nodes(&self) -> Result<Vec<Node>, GraphError> {
         let node_prefix = Self::node_key("");
         let mut nodes = Vec::new();
@@ -210,12 +247,12 @@ impl StorageMethods for HelixGraphStorage {
     fn create_node(
         &self,
         label: &str,
-        properties: std::collections::HashMap<String, Value>,
+        properties: impl IntoIterator<Item = (String, Value)>,
     ) -> Result<Node, GraphError> {
         let node = Node {
             id: Uuid::new_v4().to_string(),
             label: label.to_string(),
-            properties,
+            properties: HashMap::from_iter(properties),
         };
 
         let mut new_batch = WriteBatchWithTransaction::default();
@@ -232,7 +269,7 @@ impl StorageMethods for HelixGraphStorage {
         label: &str,
         from_node: &str,
         to_node: &str,
-        properties: HashMap<String, Value>,
+        properties: impl IntoIterator<Item = (String, Value)>,
     ) -> Result<Edge, GraphError> {
         // look at creating check function that uses pinning
         if !self.get_node(from_node).is_ok() || !self.get_node(to_node).is_ok() {
@@ -244,7 +281,7 @@ impl StorageMethods for HelixGraphStorage {
             label: label.to_string(),
             from_node: from_node.to_string(),
             to_node: to_node.to_string(),
-            properties,
+            properties: HashMap::from_iter(properties),
         };
 
         let mut batch = WriteBatch::default();
@@ -321,9 +358,12 @@ impl StorageMethods for HelixGraphStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::props;
     use crate::storage_core::storage_methods::StorageMethods;
     use crate::types::{Edge, GraphError, Node, Value};
     use std::collections::HashMap;
+    use std::iter;
+    use rocksdb::properties;
     use tempfile::TempDir;
 
     fn setup_temp_db() -> (HelixGraphStorage, TempDir) {
@@ -336,8 +376,10 @@ mod tests {
     #[test]
     fn test_create_node() {
         let (storage, _temp_dir) = setup_temp_db();
-        let mut properties = HashMap::new();
-        properties.insert("name".to_string(), Value::String("test node".to_string()));
+
+        let mut properties = props! {
+            "name" => "test node",
+        };
 
         let node = storage.create_node("person", properties).unwrap();
 
@@ -354,11 +396,12 @@ mod tests {
     fn test_create_edge() {
         let (storage, _temp_dir) = setup_temp_db();
 
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("person", HashMap::new()).unwrap();
+        let node1 = storage.create_node("person", props!()).unwrap();
+        let node2 = storage.create_node("person", props!()).unwrap();
 
-        let mut edge_props = HashMap::new();
-        edge_props.insert("weight".to_string(), Value::Integer(5));
+        let mut edge_props = props!{
+            "age" => 22,
+        };
 
         let edge = storage
             .create_edge("knows", &node1.id, &node2.id, edge_props)
@@ -375,7 +418,7 @@ mod tests {
     fn test_create_edge_with_nonexistent_nodes() {
         let (storage, _temp_dir) = setup_temp_db();
 
-        let result = storage.create_edge("knows", "nonexistent1", "nonexistent2", HashMap::new());
+        let result = storage.create_edge("knows", "nonexistent1", "nonexistent2", props!());
 
         assert!(result.is_err());
     }
@@ -384,15 +427,15 @@ mod tests {
     fn test_drop_node() {
         let (storage, _temp_dir) = setup_temp_db();
 
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("person", HashMap::new()).unwrap();
-        let node3 = storage.create_node("person", HashMap::new()).unwrap();
+        let node1 = storage.create_node("person", props!()).unwrap();
+        let node2 = storage.create_node("person", props!()).unwrap();
+        let node3 = storage.create_node("person", props!()).unwrap();
 
         storage
-            .create_edge("knows", &node1.id, &node2.id, HashMap::new())
+            .create_edge("knows", &node1.id, &node2.id, props!())
             .unwrap();
         storage
-            .create_edge("knows", &node3.id, &node1.id, HashMap::new())
+            .create_edge("knows", &node3.id, &node1.id, props!())
             .unwrap();
 
         storage.drop_node(&node1.id).unwrap();
@@ -404,10 +447,10 @@ mod tests {
     fn test_drop_edge() {
         let (storage, _temp_dir) = setup_temp_db();
 
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("person", HashMap::new()).unwrap();
+        let node1 = storage.create_node("person", props!()).unwrap();
+        let node2 = storage.create_node("person", props!()).unwrap();
         let edge = storage
-            .create_edge("knows", &node1.id, &node2.id, HashMap::new())
+            .create_edge("knows", &node1.id, &node2.id, props!())
             .unwrap();
 
         storage.drop_edge(&edge.id).unwrap();
@@ -419,7 +462,7 @@ mod tests {
     fn test_check_exists() {
         let (storage, _temp_dir) = setup_temp_db();
 
-        let node = storage.create_node("person", HashMap::new()).unwrap();
+        let node = storage.create_node("person", props!()).unwrap();
         assert!(storage.check_exists(&node.id).unwrap());
         assert!(!storage.check_exists("nonexistent").unwrap());
     }
@@ -428,7 +471,7 @@ mod tests {
     fn test_get_temp_node() {
         let (storage, _temp_dir) = setup_temp_db();
 
-        let node = storage.create_node("person", HashMap::new()).unwrap();
+        let node = storage.create_node("person", props!()).unwrap();
 
         let temp_node = storage.get_temp_node(&node.id).unwrap();
 
@@ -440,14 +483,14 @@ mod tests {
     fn test_multiple_edges_between_nodes() {
         let (storage, _temp_dir) = setup_temp_db();
 
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("person", HashMap::new()).unwrap();
+        let node1 = storage.create_node("person", props!()).unwrap();
+        let node2 = storage.create_node("person", props!()).unwrap();
 
         let edge1 = storage
-            .create_edge("knows", &node1.id, &node2.id, HashMap::new())
+            .create_edge("knows", &node1.id, &node2.id, props!())
             .unwrap();
         let edge2 = storage
-            .create_edge("likes", &node1.id, &node2.id, HashMap::new())
+            .create_edge("likes", &node1.id, &node2.id, props!())
             .unwrap();
 
         assert!(storage.get_edge(&edge1.id).is_ok());
@@ -458,11 +501,11 @@ mod tests {
     fn test_node_with_properties() {
         let (storage, _temp_dir) = setup_temp_db();
 
-        let mut properties = HashMap::new();
-        properties.insert("name".to_string(), Value::String("George".to_string()));
-        properties.insert("age".to_string(), Value::Integer(22));
-        properties.insert("active".to_string(), Value::Boolean(true));
-
+        let mut properties = props! {
+            "name" => "George",
+            "age" => 22,
+            "active" => true,
+        };
         let node = storage.create_node("person", properties).unwrap();
         let retrieved_node = storage.get_node(&node.id).unwrap();
 
@@ -482,9 +525,9 @@ mod tests {
 
     fn test_get_all_nodes() {
         let (storage, _temp_dir) = setup_temp_db();
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("thing", HashMap::new()).unwrap();
-        let node3 = storage.create_node("other", HashMap::new()).unwrap();
+        let node1 = storage.create_node("person", props!()).unwrap();
+        let node2 = storage.create_node("thing", props!()).unwrap();
+        let node3 = storage.create_node("other", props!()).unwrap();
 
         let nodes = storage.get_all_nodes().unwrap();
 
@@ -507,13 +550,13 @@ mod tests {
 fn test_get_all_edges() {
     let (storage, _temp_dir) = setup_temp_db();
     
-    let node1 = storage.create_node("person", HashMap::new()).unwrap();
-    let node2 = storage.create_node("person", HashMap::new()).unwrap();
-    let node3 = storage.create_node("person", HashMap::new()).unwrap();
+    let node1 = storage.create_node("person", props!()).unwrap();
+    let node2 = storage.create_node("person", props!()).unwrap();
+    let node3 = storage.create_node("person", props!()).unwrap();
 
-    let edge1 = storage.create_edge("knows", &node1.id, &node2.id, HashMap::new()).unwrap();
-    let edge2 = storage.create_edge("likes", &node2.id, &node3.id, HashMap::new()).unwrap();
-    let edge3 = storage.create_edge("follows", &node1.id, &node3.id, HashMap::new()).unwrap();
+    let edge1 = storage.create_edge("knows", &node1.id, &node2.id, props!()).unwrap();
+    let edge2 = storage.create_edge("likes", &node2.id, &node3.id, props!()).unwrap();
+    let edge3 = storage.create_edge("follows", &node1.id, &node3.id, props!()).unwrap();
 
     let edges = storage.get_all_edges().unwrap();
 

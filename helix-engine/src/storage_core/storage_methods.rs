@@ -27,10 +27,12 @@ pub trait StorageMethods {
 
     /// Returns a list of edge objects of the outgoing edges from a given node 
     fn get_out_edges(&self, node_id: &str, edge_label: &str) -> Result<Vec<Edge>, GraphError>;
-
     /// Returns a list of edge objects of the incoming edges from a given node
     fn get_in_edges(&self, node_id: &str, edge_label: &str) -> Result<Vec<Edge>, GraphError>;
     
+    /// Returns a list of node objects of the outgoing nodes from a given node
+    fn get_out_nodes(&self, node_id: &str, edge_label: &str) -> Result<Vec<Node>, GraphError>;
+
     /// Returns all nodes in the graph
     fn get_all_nodes(&self) -> Result<Vec<Node>, GraphError>;
     /// Returns all edges in the graph
@@ -40,7 +42,7 @@ pub trait StorageMethods {
     fn create_node(
         &self,
         label: &str,
-        properties: HashMap<String, Value>,
+        properties: impl IntoIterator<Item = (String, Value)>,
     ) -> Result<Node, GraphError>;
 
     /// Creates an edge entry between two nodes
@@ -49,7 +51,7 @@ pub trait StorageMethods {
         label: &str,
         from_node: &str,
         to_node: &str,
-        properties: HashMap<String, Value>,
+        properties: impl IntoIterator<Item = (String, Value)>,
     ) -> Result<Edge, GraphError>;
 
     /// Deletes a node entry along with all of its connected edges 

@@ -28,6 +28,24 @@ pub enum Value {
     Null,
 }
 
+impl From<&str> for Value {
+    fn from(s: &str) -> Self {
+        Value::String(s.to_string())
+    }
+}
+
+impl From<i32> for Value {
+    fn from(i: i32) -> Self {
+        Value::Integer(i)
+    }
+}
+
+impl From<bool> for Value {
+    fn from(b: bool) -> Self {
+        Value::Boolean(b)
+    }
+}
+
 #[derive(Debug)]
 pub enum GraphError {
     Io(std::io::Error),

@@ -1,10 +1,11 @@
 use crate::{
-    storage_core::{storage_core::HelixGraphStorage, storage_methods::StorageMethods},
-    types::{Edge, GraphError, Node, Value},
+    props, storage_core::{storage_core::HelixGraphStorage, storage_methods::StorageMethods}, types::{Edge, GraphError, Node, Value}
+    
 };
 use function_name::named;
 use rocksdb::properties;
 use std::collections::HashMap;
+use std::time::Instant;
 
 use super::traversal_steps::{SourceTraversalSteps, TraversalSteps};
 
@@ -26,17 +27,17 @@ pub struct TraversalBuilder {
 impl TraversalBuilder {
     pub fn new(start_nodes: Vec<Node>) -> Self {
         let mut builder = Self {
-            variables: HashMap::new(),
+            variables:  HashMap::from_iter(props!()),
             current_step: vec![TraversalValue::NodeArray(start_nodes)],
         };
         builder
     }
 
     pub fn check_is_valid_node_traversal(&self, function_name: &str) -> Result<(), GraphError> {
-        match self.current_step.iter().all(|val| {
-            matches!(val, TraversalValue::NodeArray(_))
-                || matches!(val, TraversalValue::SingleNode(_))
-        }) {
+        match matches!(
+            self.current_step[0],
+            TraversalValue::NodeArray(_) | TraversalValue::SingleNode(_)
+        ) {
             true => Ok(()),
             false => Err(GraphError::TraversalError(format!(
                 "The traversal step {:?}, is not a valid traversal from an edge. 
@@ -47,10 +48,10 @@ impl TraversalBuilder {
     }
 
     pub fn check_is_valid_edge_traversal(&self, function_name: &str) -> Result<(), GraphError> {
-        match self.current_step.iter().all(|val| {
-            matches!(val, TraversalValue::EdgeArray(_))
-                || matches!(val, TraversalValue::SingleEdge(_))
-        }) {
+        match matches!(
+            self.current_step[0],
+            TraversalValue::EdgeArray(_) | TraversalValue::SingleEdge(_)
+        )  {
             true => Ok(()),
             false => Err(GraphError::TraversalError(format!(
                 "The traversal step {:?}, is not a valid traversal from a node. 
@@ -77,7 +78,7 @@ impl SourceTraversalSteps for TraversalBuilder {
 
     #[named]
     fn add_v(&mut self, storage: &HelixGraphStorage, node_label: &str) -> &mut Self {
-        let node = storage.create_node(node_label, HashMap::new()).unwrap();
+        let node = storage.create_node(node_label, props!()).unwrap();
         // TODO: remove hashmap
         self.current_step = vec![TraversalValue::SingleNode(node)];
         self
@@ -93,7 +94,7 @@ impl SourceTraversalSteps for TraversalBuilder {
     ) -> &mut Self {
         // TODO: remove hashmap
         let edge = storage
-            .create_edge(edge_label, from_id, to_id, HashMap::new())
+            .create_edge(edge_label, from_id, to_id, props!())
             .unwrap();
         self.current_step = vec![TraversalValue::SingleEdge(edge)];
         self
@@ -107,15 +108,16 @@ impl TraversalSteps for TraversalBuilder {
             .unwrap();
 
         if let TraversalValue::NodeArray(nodes) = &self.current_step[0] {
-            let mut new_current: Vec<TraversalValue> = Vec::with_capacity(nodes.len());
-            let mut next_nodes = Vec::new();
+            let mut new_current = Vec::with_capacity(nodes.len());
             for node in nodes {
-                let edges = storage.get_out_edges(&node.id, edge_label).unwrap();
-                for edge in edges {
-                    next_nodes.push(storage.get_node(&edge.to_node).unwrap());
-                }
+                // let edges = storage.get_out_edges(&node.id, edge_label).unwrap();
+                // for edge in &storage.get_out_edges(&node.id, edge_label).unwrap() {
+                //     next_nodes.push(storage.get_node(&edge.to_node).unwrap());
+                // }
+                new_current.push(TraversalValue::NodeArray(
+                    storage.get_out_nodes(&node.id, edge_label).unwrap(),
+                ));
             }
-            new_current.push(TraversalValue::NodeArray(next_nodes));
             self.current_step = new_current;
         }
         self
@@ -144,7 +146,7 @@ impl TraversalSteps for TraversalBuilder {
             let mut new_current: Vec<TraversalValue> = Vec::with_capacity(nodes.len());
             let mut next_nodes = Vec::new();
             for node in nodes {
-                let edges = storage.get_in_edges(&node.id, edge_label).unwrap();
+                let edges = &storage.get_in_edges(&node.id, edge_label).unwrap();
                 for edge in edges {
                     let node_obj = storage.get_node(&edge.from_node).unwrap();
                     next_nodes.push(node_obj);
@@ -176,6 +178,8 @@ impl TraversalSteps for TraversalBuilder {
 //
 #[cfg(test)]
 mod tests {
+    use crate::props;
+
     use super::*;
     use std::collections::HashMap;
     use tempfile::TempDir;
@@ -191,9 +195,9 @@ mod tests {
     fn test_v() {
         let (storage, _temp_dir) = setup_test_db();
 
-        let person1 = storage.create_node("person", HashMap::new()).unwrap();
-        let person2 = storage.create_node("person", HashMap::new()).unwrap();
-        let thing = storage.create_node("thing", HashMap::new()).unwrap();
+        let person1 = storage.create_node("person", props!()).unwrap();
+        let person2 = storage.create_node("person", props!()).unwrap();
+        let thing = storage.create_node("thing", props!()).unwrap();
 
         let mut traversal = TraversalBuilder::new(vec![]);
         traversal.v(&storage);
@@ -226,18 +230,18 @@ mod tests {
         //         \-[likes]->(person3)
         // (person2)-[follows]->(person3)
 
-        let person1 = storage.create_node("person", HashMap::new()).unwrap();
-        let person2 = storage.create_node("person", HashMap::new()).unwrap();
-        let person3 = storage.create_node("person", HashMap::new()).unwrap();
+        let person1 = storage.create_node("person", props!()).unwrap();
+        let person2 = storage.create_node("person", props!()).unwrap();
+        let person3 = storage.create_node("person", props!()).unwrap();
 
         let knows_edge = storage
-            .create_edge("knows", &person1.id, &person2.id, HashMap::new())
+            .create_edge("knows", &person1.id, &person2.id, props!())
             .unwrap();
         let likes_edge = storage
-            .create_edge("likes", &person1.id, &person3.id, HashMap::new())
+            .create_edge("likes", &person1.id, &person3.id, props!())
             .unwrap();
         let follows_edge = storage
-            .create_edge("follows", &person2.id, &person3.id, HashMap::new())
+            .create_edge("follows", &person2.id, &person3.id, props!())
             .unwrap();
 
         let mut traversal = TraversalBuilder::new(vec![]);
@@ -317,8 +321,8 @@ mod tests {
     fn test_v_nodes_without_edges() {
         let (storage, _temp_dir) = setup_test_db();
 
-        let person1 = storage.create_node("person", HashMap::new()).unwrap();
-        let person2 = storage.create_node("person", HashMap::new()).unwrap();
+        let person1 = storage.create_node("person", props!()).unwrap();
+        let person2 = storage.create_node("person", props!()).unwrap();
 
         let mut traversal = TraversalBuilder::new(vec![]);
         traversal.v(&storage);
@@ -355,8 +359,8 @@ mod tests {
     fn test_add_e() {
         let (storage, _temp_dir) = setup_test_db();
 
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("person", HashMap::new()).unwrap();
+        let node1 = storage.create_node("person", props!()).unwrap();
+        let node2 = storage.create_node("person", props!()).unwrap();
 
         let mut traversal = TraversalBuilder::new(vec![]);
         traversal.add_e(&storage, "knows", &node1.id, &node2.id);
@@ -377,15 +381,15 @@ mod tests {
         let (storage, _temp_dir) = setup_test_db();
 
         // Create graph: (person1)-[knows]->(person2)-[knows]->(person3)
-        let person1 = storage.create_node("person", HashMap::new()).unwrap();
-        let person2 = storage.create_node("person", HashMap::new()).unwrap();
-        let person3 = storage.create_node("person", HashMap::new()).unwrap();
+        let person1 = storage.create_node("person", props!()).unwrap();
+        let person2 = storage.create_node("person", props!()).unwrap();
+        let person3 = storage.create_node("person", props!()).unwrap();
 
         storage
-            .create_edge("knows", &person1.id, &person2.id, HashMap::new())
+            .create_edge("knows", &person1.id, &person2.id, props!())
             .unwrap();
         storage
-            .create_edge("knows", &person2.id, &person3.id, HashMap::new())
+            .create_edge("knows", &person2.id, &person3.id, props!())
             .unwrap();
 
         let mut traversal = TraversalBuilder::new(vec![person1.clone()]);
@@ -407,11 +411,11 @@ mod tests {
         let (storage, _temp_dir) = setup_test_db();
 
         // Create graph: (person1)-[knows]->(person2)
-        let person1 = storage.create_node("person", HashMap::new()).unwrap();
-        let person2 = storage.create_node("person", HashMap::new()).unwrap();
+        let person1 = storage.create_node("person", props!()).unwrap();
+        let person2 = storage.create_node("person", props!()).unwrap();
 
         let edge = storage
-            .create_edge("knows", &person1.id, &person2.id, HashMap::new())
+            .create_edge("knows", &person1.id, &person2.id, props!())
             .unwrap();
 
         let mut traversal = TraversalBuilder::new(vec![person1.clone()]);
@@ -434,11 +438,11 @@ mod tests {
         let (storage, _temp_dir) = setup_test_db();
 
         // Create graph: (person1)-[knows]->(person2)
-        let person1 = storage.create_node("person", HashMap::new()).unwrap();
-        let person2 = storage.create_node("person", HashMap::new()).unwrap();
+        let person1 = storage.create_node("person", props!()).unwrap();
+        let person2 = storage.create_node("person", props!()).unwrap();
 
         storage
-            .create_edge("knows", &person1.id, &person2.id, HashMap::new())
+            .create_edge("knows", &person1.id, &person2.id, props!())
             .unwrap();
 
         let mut traversal = TraversalBuilder::new(vec![person2.clone()]);
@@ -461,11 +465,11 @@ mod tests {
         let (storage, _temp_dir) = setup_test_db();
 
         // Create test graph: (person1)-[knows]->(person2)
-        let person1 = storage.create_node("person", HashMap::new()).unwrap();
-        let person2 = storage.create_node("person", HashMap::new()).unwrap();
+        let person1 = storage.create_node("person", props!()).unwrap();
+        let person2 = storage.create_node("person", props!()).unwrap();
 
         let edge = storage
-            .create_edge("knows", &person1.id, &person2.id, HashMap::new())
+            .create_edge("knows", &person1.id, &person2.id, props!())
             .unwrap();
 
         let mut traversal = TraversalBuilder::new(vec![person2.clone()]);
@@ -488,10 +492,10 @@ mod tests {
         let (storage, _temp_dir) = setup_test_db();
         let mut traversal = TraversalBuilder::new(vec![]);
 
-        let node1 = storage.create_node("person", HashMap::new()).unwrap();
-        let node2 = storage.create_node("person", HashMap::new()).unwrap();
+        let node1 = storage.create_node("person", props!()).unwrap();
+        let node2 = storage.create_node("person", props!()).unwrap();
         let edge = storage
-            .create_edge("knows", &node1.id, &node2.id, HashMap::new())
+            .create_edge("knows", &node1.id, &node2.id, props!())
             .unwrap();
         traversal.current_step = vec![TraversalValue::SingleEdge(edge)];
 
@@ -507,24 +511,24 @@ mod tests {
 
         // Graph structure:
         // (person1)-[knows]->(person2)-[likes]->(person3)
-        //     ^                                    |
-        //     |                                    |
-        //     +-------<------<-----[follows]--<----+
+        //     ^                                     |
+        //     |                                     |
+        //     +-------<------[follows]------<-------+
 
-        let person1 = storage.create_node("person", HashMap::new()).unwrap();
-        let person2 = storage.create_node("person", HashMap::new()).unwrap();
-        let person3 = storage.create_node("person", HashMap::new()).unwrap();
+        let person1 = storage.create_node("person", props!()).unwrap();
+        let person2 = storage.create_node("person", props!()).unwrap();
+        let person3 = storage.create_node("person", props!()).unwrap();
 
         storage
-            .create_edge("knows", &person1.id, &person2.id, HashMap::new())
+            .create_edge("knows", &person1.id, &person2.id, props!())
             .unwrap();
         storage
-            .create_edge("likes", &person2.id, &person3.id, HashMap::new())
+            .create_edge("likes", &person2.id, &person3.id, props!())
             .unwrap();
         storage
-            .create_edge("follows", &person3.id, &person1.id, HashMap::new())
+            .create_edge("follows", &person3.id, &person1.id, props!())
             .unwrap();
-
+        
         let mut traversal = TraversalBuilder::new(vec![person1.clone()]);
 
         // Traverse from person1 to person2
