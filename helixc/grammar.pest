@@ -27,11 +27,10 @@ source_traversal = {("V" | "E") ~ traversal_expression? }
 
 // Clauses
 traversal_assignment = { (identifier ~ "<-") }
-traversal = { traversal_assignment? ~ source_traversal }
-get_clause = { "GET" ~ traversal }
+get_clause = { "GET" ~ traversal_assignment? ~ source_traversal }
 
 // Query body
-query_body = { get_clause ~ return_clause }
+query_body = { get_clause }
 
 // Schema elements
 schema_property = { identifier ~ ":" ~ type_def }
@@ -48,7 +47,7 @@ node_schema = { "V::" ~ identifier ~ "{" ~ schema_properties ~ "}" }
 edge_schema = { "E::" ~ identifier ~ "{" ~ edge_property ~ "}" }
 
 // Top level
-query = { "QUERY" ~ identifier ~ parameters? ~ "=>" ~ query_body }
+query = { "QUERY" ~ identifier ~ parameters? ~ "=>" ~ query_body ~ return_clause }
 schema = { node_schema | edge_schema }
 
 source = { (query | schema)* }
