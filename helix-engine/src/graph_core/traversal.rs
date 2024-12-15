@@ -1,9 +1,10 @@
 use crate::{
-    props, storage_core::{storage_core::HelixGraphStorage, storage_methods::StorageMethods}, types::GraphError
-    
+    props,
+    storage_core::{storage_core::HelixGraphStorage, storage_methods::StorageMethods},
+    types::GraphError,
 };
-use protocol::{Node, Edge, Value};
 use function_name::named;
+use protocol::{Edge, Node, Value};
 use rocksdb::properties;
 use std::collections::HashMap;
 use std::time::Instant;
@@ -28,7 +29,7 @@ pub struct TraversalBuilder {
 impl TraversalBuilder {
     pub fn new(start_nodes: Vec<Node>) -> Self {
         let mut builder = Self {
-            variables:  HashMap::from_iter(props!()),
+            variables: HashMap::from_iter(props!()),
             current_step: vec![TraversalValue::NodeArray(start_nodes)],
         };
         builder
@@ -52,7 +53,7 @@ impl TraversalBuilder {
         match matches!(
             self.current_step[0],
             TraversalValue::EdgeArray(_) | TraversalValue::SingleEdge(_)
-        )  {
+        ) {
             true => Ok(()),
             false => Err(GraphError::TraversalError(format!(
                 "The traversal step {:?}, is not a valid traversal from a node. 
@@ -66,21 +67,20 @@ impl TraversalBuilder {
 impl SourceTraversalSteps for TraversalBuilder {
     #[named]
     fn v(&mut self, storage: &HelixGraphStorage) -> &mut Self {
-        let nodes = storage.get_all_nodes().unwrap();
+        let nodes = storage.get_all_nodes().unwrap(); // TODO: Handle error
         self.current_step = vec![TraversalValue::NodeArray(nodes)];
         self
     }
 
     fn e(&mut self, storage: &HelixGraphStorage) -> &mut Self {
-        let edges = storage.get_all_edges().unwrap();
+        let edges = storage.get_all_edges().unwrap(); // TODO: Handle error
         self.current_step = vec![TraversalValue::EdgeArray(edges)];
         self
     }
 
     #[named]
     fn add_v(&mut self, storage: &HelixGraphStorage, node_label: &str) -> &mut Self {
-        let node = storage.create_node(node_label, props!()).unwrap();
-        // TODO: remove hashmap
+        let node = storage.create_node(node_label, props!()).unwrap(); // TODO: Handle error
         self.current_step = vec![TraversalValue::SingleNode(node)];
         self
     }
@@ -93,10 +93,9 @@ impl SourceTraversalSteps for TraversalBuilder {
         from_id: &str,
         to_id: &str,
     ) -> &mut Self {
-        // TODO: remove hashmap
         let edge = storage
             .create_edge(edge_label, from_id, to_id, props!())
-            .unwrap();
+            .unwrap(); // TODO: Handle error
         self.current_step = vec![TraversalValue::SingleEdge(edge)];
         self
     }
@@ -106,17 +105,13 @@ impl TraversalSteps for TraversalBuilder {
     #[named]
     fn out(&mut self, storage: &HelixGraphStorage, edge_label: &str) -> &mut Self {
         self.check_is_valid_node_traversal(function_name!())
-            .unwrap();
+            .unwrap(); // TODO: Handle error
 
         if let TraversalValue::NodeArray(nodes) = &self.current_step[0] {
             let mut new_current = Vec::with_capacity(nodes.len());
             for node in nodes {
-                // let edges = storage.get_out_edges(&node.id, edge_label).unwrap();
-                // for edge in &storage.get_out_edges(&node.id, edge_label).unwrap() {
-                //     next_nodes.push(storage.get_node(&edge.to_node).unwrap());
-                // }
                 new_current.push(TraversalValue::NodeArray(
-                    storage.get_out_nodes(&node.id, edge_label).unwrap(),
+                    storage.get_out_nodes(&node.id, edge_label).unwrap(), // TODO: Handle error
                 ));
             }
             self.current_step = new_current;
@@ -127,12 +122,13 @@ impl TraversalSteps for TraversalBuilder {
     #[named]
     fn out_e(&mut self, storage: &HelixGraphStorage, edge_label: &str) -> &mut Self {
         self.check_is_valid_node_traversal(function_name!())
-            .unwrap();
+            .unwrap(); // TODO: Handle error
         if let TraversalValue::NodeArray(nodes) = &self.current_step[0] {
             let mut new_current: Vec<TraversalValue> = Vec::with_capacity(nodes.len());
             for node in nodes {
-                let edges = storage.get_out_edges(&node.id, edge_label).unwrap();
-                new_current.push(TraversalValue::EdgeArray(edges));
+                new_current.push(TraversalValue::EdgeArray(
+                    storage.get_out_edges(&node.id, edge_label).unwrap(), // TODO: Handle error
+                ));
             }
             self.current_step = new_current;
         }
@@ -145,15 +141,11 @@ impl TraversalSteps for TraversalBuilder {
             .unwrap();
         if let TraversalValue::NodeArray(nodes) = &self.current_step[0] {
             let mut new_current: Vec<TraversalValue> = Vec::with_capacity(nodes.len());
-            let mut next_nodes = Vec::new();
             for node in nodes {
-                let edges = &storage.get_in_edges(&node.id, edge_label).unwrap();
-                for edge in edges {
-                    let node_obj = storage.get_node(&edge.from_node).unwrap();
-                    next_nodes.push(node_obj);
-                }
+                new_current.push(TraversalValue::NodeArray(
+                    storage.get_in_nodes(&node.id, edge_label).unwrap(), // TODO: Handle error
+                ));
             }
-            new_current.push(TraversalValue::NodeArray(next_nodes));
             self.current_step = new_current;
         }
         self
@@ -166,8 +158,9 @@ impl TraversalSteps for TraversalBuilder {
         if let TraversalValue::NodeArray(nodes) = &self.current_step[0] {
             let mut new_current: Vec<TraversalValue> = Vec::with_capacity(nodes.len());
             for node in nodes {
-                let edges = storage.get_in_edges(&node.id, edge_label).unwrap();
-                new_current.push(TraversalValue::EdgeArray(edges));
+                new_current.push(TraversalValue::EdgeArray(
+                    storage.get_in_edges(&node.id, edge_label).unwrap(), // TODO: Handle error
+                ));
             }
             self.current_step = new_current;
         }
@@ -175,13 +168,12 @@ impl TraversalSteps for TraversalBuilder {
     }
 }
 
-// need to account for multiple nodes or edges at a given traversal step
-//
 #[cfg(test)]
 mod tests {
     use crate::props;
 
     use super::*;
+    use rand::{random, Rng};
     use std::collections::HashMap;
     use tempfile::TempDir;
 
@@ -529,7 +521,7 @@ mod tests {
         storage
             .create_edge("follows", &person3.id, &person1.id, props!())
             .unwrap();
-        
+
         let mut traversal = TraversalBuilder::new(vec![person1.clone()]);
 
         // Traverse from person1 to person2

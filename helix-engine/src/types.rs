@@ -5,6 +5,7 @@ pub enum GraphError {
     Io(std::io::Error),
     GraphConnectionError(String, std::io::Error),
     StorageConnectionError(String, std::io::Error),
+    StorageError(String),
     TraversalError(String),
     New(String)
 }
@@ -20,6 +21,7 @@ impl fmt::Display for GraphError {
                 write!(f, "Error: {}", format!("{} {}", msg, e))
             },
             GraphError::TraversalError(msg) => write!(f, "Traversal error: {}", msg),
+            GraphError::StorageError(msg) => write!(f, "Storage error: {}", msg),
             GraphError::New(msg) => write!(f, "Graph error: {}", msg),
         }
     }

@@ -33,6 +33,8 @@ pub trait StorageMethods {
     
     /// Returns a list of node objects of the outgoing nodes from a given node
     fn get_out_nodes(&self, node_id: &str, edge_label: &str) -> Result<Vec<Node>, GraphError>;
+    /// Returns a list of node objects of the incoming nodes from a given node
+    fn get_in_nodes(&self, node_id: &str, edge_label: &str) -> Result<Vec<Node>, GraphError>;
 
     /// Returns all nodes in the graph
     fn get_all_nodes(&self) -> Result<Vec<Node>, GraphError>;

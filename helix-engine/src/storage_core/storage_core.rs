@@ -1,13 +1,17 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use bincode::{deserialize, serialize};
-use rocksdb::{IteratorMode, Options, WriteBatch, WriteBatchWithTransaction, DB};
+use rocksdb::{
+    BlockBasedOptions, Cache, Direction, IteratorMode, Options, ReadOptions, WriteBatch,
+    WriteBatchWithTransaction, DB,
+};
 
 use uuid::Uuid;
 
 use crate::storage_core::storage_methods::StorageMethods;
 use crate::types::GraphError;
 use protocol::{Edge, Node, Value};
+use rayon::prelude::*;
 
 // Byte values of data-type key prefixes
 const NODE_PREFIX: &[u8] = b"n:";
@@ -28,6 +32,17 @@ impl HelixGraphStorage {
     pub fn new(path: &str) -> Result<HelixGraphStorage, GraphError> {
         let mut opts = Options::default();
         opts.create_if_missing(true);
+        // set cache
+        let mut block_opts = BlockBasedOptions::default();
+        block_opts.set_block_cache(&Cache::new_lru_cache(4 * 1024 * 1024 * 1024));
+        block_opts.set_block_size(64 * 1024); // 64KB blocks
+        block_opts.set_bloom_filter(10.0, false);
+        block_opts.set_cache_index_and_filter_blocks(true);
+        opts.set_block_based_table_factory(&block_opts);
+        opts.set_max_background_jobs(8);
+        opts.increase_parallelism(num_cpus::get() as i32);
+        opts.set_write_buffer_size(256 * 1024 * 1024);
+        opts.set_max_write_buffer_number(4);
         let db = match DB::open(&opts, path) {
             Ok(db) => db,
             Err(err) => return Err(GraphError::from(err)),
@@ -82,7 +97,7 @@ impl HelixGraphStorage {
 
 impl StorageMethods for HelixGraphStorage {
     fn check_exists(&self, id: &str) -> Result<bool, GraphError> {
-        match self.db.get_pinned(Self::node_key(id)) {
+        match self.db.get_pinned([NODE_PREFIX, id.as_bytes()].concat()) {
             Ok(Some(_)) => Ok(true),
             Ok(None) => Ok(false),
             Err(err) => Err(GraphError::from(err)),
@@ -90,7 +105,7 @@ impl StorageMethods for HelixGraphStorage {
     }
 
     fn get_temp_node(&self, id: &str) -> Result<Node, GraphError> {
-        match self.db.get_pinned(Self::node_key(id)) {
+        match self.db.get_pinned([NODE_PREFIX, id.as_bytes()].concat()) {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
             Ok(None) => Err(GraphError::New(format!("Item not found!"))),
             Err(err) => Err(GraphError::from(err)),
@@ -98,7 +113,7 @@ impl StorageMethods for HelixGraphStorage {
     }
 
     fn get_temp_edge(&self, id: &str) -> Result<Edge, GraphError> {
-        match self.db.get_pinned(Self::edge_key(id)) {
+        match self.db.get_pinned([EDGE_PREFIX, id.as_bytes()].concat()) {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
             Ok(None) => Err(GraphError::New(format!("Item not found!"))),
             Err(err) => Err(GraphError::from(err)),
@@ -106,7 +121,7 @@ impl StorageMethods for HelixGraphStorage {
     }
 
     fn get_node(&self, id: &str) -> Result<Node, GraphError> {
-        match self.db.get(Self::node_key(id)) {
+        match self.db.get([NODE_PREFIX, id.as_bytes()].concat()) {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
             Ok(None) => Err(GraphError::New(format!("Item not found!"))),
             Err(err) => Err(GraphError::from(err)),
@@ -169,36 +184,61 @@ impl StorageMethods for HelixGraphStorage {
     }
 
     fn get_out_nodes(&self, node_id: &str, edge_label: &str) -> Result<Vec<Node>, GraphError> {
-        let mut edges = Vec::new();
-        let mut nodes = Vec::new();
-        let mut node_ids = std::collections::HashSet::new();
+        let mut nodes = Vec::with_capacity(20);
 
-        // Prefetch out edges
+        // // Prefetch out edges
         let out_prefix = Self::out_edge_key(node_id, "");
-        let iter = self
-            .db
-            .iterator(IteratorMode::From(&out_prefix, rocksdb::Direction::Forward));
+        let mut read_opts = ReadOptions::default();
+        read_opts.set_verify_checksums(false);
+        read_opts.set_prefix_same_as_start(true);
+        let iter = self.db.iterator_opt(
+            IteratorMode::From(&out_prefix, rocksdb::Direction::Forward),
+            read_opts,
+        );
 
-        // Collect all relevant edges and node IDs
         for result in iter {
             let (key, _) = result?;
             if !key.starts_with(&out_prefix) {
                 break;
             }
-
-            let edge_id = String::from_utf8(key[out_prefix.len()..].to_vec()).unwrap();
-            let edge = self.get_edge(&edge_id)?;
+            let edge =
+                &self.get_temp_edge(&std::str::from_utf8(&key[out_prefix.len()..]).unwrap())?;
 
             if edge.label == edge_label {
-                edges.push(edge.clone());
-                node_ids.insert(edge.to_node.clone());
+                if let Ok(node) = self.get_node(&edge.to_node) {
+                    nodes.push(node);
+                }
             }
         }
 
-        // Batch fetch all connected nodes
-        for node_id in node_ids {
-            if let Ok(node) = self.get_node(&node_id) {
-                nodes.push(node);
+        Ok(nodes)
+    }
+
+    fn get_in_nodes(&self, node_id: &str, edge_label: &str) -> Result<Vec<Node>, GraphError> {
+        let mut nodes = Vec::with_capacity(20);
+
+        // Prefetch in edges
+        let in_prefix = Self::in_edge_key(node_id, "");
+        let mut read_opts = ReadOptions::default();
+        read_opts.set_verify_checksums(false);
+        read_opts.set_prefix_same_as_start(true);
+        let iter = self.db.iterator_opt(
+            IteratorMode::From(&in_prefix, rocksdb::Direction::Forward),
+            read_opts,
+        );
+
+        for result in iter {
+            let (key, _) = result?;
+            if !key.starts_with(&in_prefix) {
+                break;
+            }
+            let edge =
+                &self.get_temp_edge(&std::str::from_utf8(&key[in_prefix.len()..]).unwrap())?;
+
+            if edge.label == edge_label {
+                if let Ok(node) = self.get_node(&edge.from_node) {
+                    nodes.push(node);
+                }
             }
         }
 
