@@ -106,8 +106,8 @@ fn bench_complex_queries(c: &mut Criterion) {
 
     let start_node = storage.get_node(&node_ids[0]).unwrap();
 
-    // Benchmark pattern matching query
-    group.bench_function("pattern_matching_100000", |b| {
+    // Benchmark two hop query
+    group.bench_function("two_hops_100000", |b| {
         b.iter(|| {
             let mut traversal = TraversalBuilder::new(vec![start_node.clone()]);
             traversal

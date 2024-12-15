@@ -2,8 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use bincode::{deserialize, serialize};
 use rocksdb::{
-    BlockBasedOptions, Cache, ColumnFamilyDescriptor, Direction, IteratorMode, Options,
-    ReadOptions, WriteBatch, WriteBatchWithTransaction, DB,
+    BlockBasedOptions, Cache, ColumnFamilyDescriptor, Direction, IteratorMode, Options, ReadOptions, WriteBatch, WriteBatchWithTransaction, WriteOptions, DB
 };
 
 use uuid::Uuid;
@@ -11,6 +10,7 @@ use uuid::Uuid;
 use crate::storage_core::storage_methods::StorageMethods;
 use crate::types::GraphError;
 use protocol::{Edge, Node, Value};
+use rayon::*;
 
 const CF_NODES: &str = "nodes"; // For node data (n:)
 const CF_EDGES: &str = "edges"; // For edge data (e:)
@@ -426,6 +426,17 @@ impl StorageMethods for HelixGraphStorage {
         properties: impl IntoIterator<Item = (String, Value)>,
     ) -> Result<Edge, GraphError> {
         // look at creating check function that uses pinning
+        // let (from_exists, to_exists) = rayon::join(
+        //     || self.get_temp_node(from_node).is_ok(),
+        //     || self.get_temp_node(to_node).is_ok(),
+        // );
+
+        // if !from_exists || !to_exists {
+        //     return Err(GraphError::New(
+        //         "One or both nodes do not exist".to_string(),
+        //     ));
+        // }
+
         if !self.get_node(from_node).is_ok() || !self.get_node(to_node).is_ok() {
             return Err(GraphError::New(format!("One or both nodes do not exist")));
         }
@@ -453,7 +464,12 @@ impl StorageMethods for HelixGraphStorage {
         batch.put_cf(cf_edges, Self::out_edge_key(from_node, &edge.id), vec![]);
         batch.put_cf(cf_edges, Self::in_edge_key(to_node, &edge.id), vec![]);
 
-        self.db.write(batch)?;
+        let mut write_opts = WriteOptions::default();
+        write_opts.set_sync(false); 
+        write_opts.disable_wal(true);
+
+        self.db.write_opt(batch, &write_opts)?;
+        // self.db.write(batch)?;
         Ok(edge)
     }
 
