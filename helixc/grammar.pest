@@ -48,6 +48,5 @@ edge_schema = { "E::" ~ identifier ~ "{" ~ edge_property ~ "}" }
 
 // Top level
 query = { "QUERY" ~ identifier ~ parameters? ~ "=>" ~ query_body ~ return_clause }
-schema = { node_schema | edge_schema }
 
-source = { (query | schema)* }
+source = { SOI ~ (query | node_schema | edge_schema)* ~ EOI }
