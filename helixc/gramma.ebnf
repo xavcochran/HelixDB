@@ -1,0 +1,69 @@
+/* Top Level Structure */
+Query ::= 'QUERY' Identifier Parameters? '=>' QueryBody
+
+/* Parameters */
+Parameters ::= '(' ParameterList? ')'
+ParameterList ::= Parameter (',' Parameter)*
+Parameter ::= Identifier ':' Type
+
+/* Types */
+Type ::= 'String' | 'Number' | 'Boolean' | 'Date' | '[' Type ']'
+
+/* Query Body */
+QueryBody ::= GetClause AddFieldClause? ReturnClause
+
+/* GET Clause */
+GetClause ::= 'GET' TraversalAssignment (',' TraversalAssignment)* WhereClause?
+TraversalAssignment ::= Identifier '<-' TraversalExpression
+
+/* Traversal Expression */
+TraversalExpression ::= 
+    VertexTraversal |
+    EdgeTraversal |
+    PropertyTraversal |
+    FunctionCall
+
+VertexTraversal ::= 
+    ('V' | Identifier) ('::' (EdgeTraversal | PropertyTraversal | FunctionCall))*
+
+EdgeTraversal ::= 
+    ('InE' | 'OutE' | 'In' | 'Out') '::' Identifier
+
+PropertyTraversal ::= 
+    Property ('::' (EdgeTraversal | PropertyTraversal | FunctionCall))*
+
+/* Where Clause */
+WhereClause ::= 'WHERE' '(' Condition ')'
+Condition ::= 
+    TraversalExpression |
+    FunctionCall |
+    Comparison |
+    '(' Condition ')' |
+    Condition ('AND' | 'OR') Condition
+
+/* ADD_FIELD Clause */
+AddFieldClause ::= 'ADD_FIELD' Identifier '{' FieldDefinitions '}'
+FieldDefinitions ::= FieldDefinition (',' FieldDefinition)*
+FieldDefinition ::= 
+    Identifier ':' (TraversalExpression | '[' TraversalAssignment+ ']')
+
+/* Return Clause */
+ReturnClause ::= 'RETURN' ReturnItems
+ReturnItems ::= ReturnItem (',' ReturnItem)*
+ReturnItem ::= Identifier
+
+/* Function Calls */
+FunctionCall ::= Identifier '(' Arguments? ')'
+Arguments ::= Argument (',' Argument)*
+Argument ::= 
+    TraversalExpression |
+    Literal |
+    '?' /* Placeholder */
+
+/* Basic Elements */
+Identifier ::= [a-zA-Z_][a-zA-Z0-9_]*
+Property ::= Identifier
+Literal ::= StringLiteral | NumberLiteral | BooleanLiteral
+StringLiteral ::= '"' [^"]* '"'
+NumberLiteral ::= [0-9]+ ('.' [0-9]+)?
+BooleanLiteral ::= 'true' | 'false'

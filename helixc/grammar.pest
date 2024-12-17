@@ -1,0 +1,52 @@
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+
+// Basic elements
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+string_literal = @{ "\"" ~ (!("\"") ~ ANY)* ~ "\"" }
+number_literal = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+boolean_literal = @{ "true" | "false" }
+literal = _{ string_literal | number_literal | boolean_literal }
+
+// Types
+type_def = { "String" | "Number" | "Boolean" }
+
+// Parameters
+parameter = { identifier ~ ":" ~ type_def }
+parameter_list = { parameter ~ ("," ~ parameter)* }
+parameters = { "(" ~ parameter_list? ~ ")" }
+
+// Return clauses
+return_items = { identifier ~ ("," ~ identifier)* }
+return_clause = { "RETURN" ~ return_items }
+
+// Traversal expressions
+child_expression = { ("::") ~ identifier }
+traversal_expression = { ("::") ~ identifier ~ ("(" ~ identifier ~ ")")? ~ child_expression* }
+source_traversal = {("V" | "E") ~ traversal_expression? }
+
+// Clauses
+traversal_assignment = { (identifier ~ "<-") }
+get_clause = { "GET" ~ traversal_assignment? ~ source_traversal }
+
+// Query body
+query_body = { get_clause }
+
+// Schema elements
+schema_property = { identifier ~ ":" ~ type_def }
+schema_properties = { schema_property? ~ ((",") ~schema_property)* }
+edge_property = { 
+    ("From") ~ ":" ~ identifier ~ "," ~ 
+    ("To") ~ ":" ~ identifier ~  "," ~ ("Properties") ~ ("{") ~ 
+    schema_properties ~
+    ("}") 
+}
+
+// Schema
+node_schema = { "V::" ~ identifier ~ "{" ~ schema_properties ~ "}" }
+edge_schema = { "E::" ~ identifier ~ "{" ~ edge_property ~ "}" }
+
+// Top level
+query = { "QUERY" ~ identifier ~ parameters? ~ "=>" ~ query_body ~ return_clause }
+
+source = { SOI ~ (query | node_schema | edge_schema)* ~ EOI }
