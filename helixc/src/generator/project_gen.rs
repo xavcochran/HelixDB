@@ -75,14 +75,19 @@ impl ProjectGenerator {
 
         writeln!(lib_rs, "mod traversals;")?;
         writeln!(lib_rs)?;
-        if self.queries.clone().iter().count() == 1 {
+        let count = self.queries.clone().iter().count();
+        if count == 1 {
             self.queries.iter().for_each(|(fn_id, _)| {
                 writeln!(lib_rs, "pub use traversals::{};", fn_id).unwrap();
             })
         } else {
-            write!(lib_rs, "pub use traversal::{{").unwrap();
-            self.queries.iter().for_each(|(fn_id, _)| {
-                write!(lib_rs, "{},", fn_id).unwrap();
+            write!(lib_rs, "pub use traversals::{{").unwrap();
+            self.queries.iter().enumerate().for_each(|(i,(fn_id, _))| {
+                if i+1 == count {
+                    write!(lib_rs, "{}", fn_id).unwrap();
+                } else {
+                    write!(lib_rs, "{}, ", fn_id).unwrap();
+                }
             });
             write!(lib_rs, "}};").unwrap();
         };
