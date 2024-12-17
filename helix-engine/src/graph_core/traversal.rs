@@ -3,7 +3,6 @@ use crate::{
     storage_core::{storage_core::HelixGraphStorage, storage_methods::StorageMethods},
     types::GraphError,
 };
-use function_name::named;
 use protocol::{Edge, Node, Value};
 use rocksdb::properties;
 use std::collections::HashMap;
@@ -65,7 +64,6 @@ impl TraversalBuilder {
 }
 
 impl SourceTraversalSteps for TraversalBuilder {
-    #[named]
     fn v(&mut self, storage: &HelixGraphStorage) -> &mut Self {
         let nodes = storage.get_all_nodes().unwrap(); // TODO: Handle error
         self.current_step = vec![TraversalValue::NodeArray(nodes)];
@@ -78,14 +76,12 @@ impl SourceTraversalSteps for TraversalBuilder {
         self
     }
 
-    #[named]
     fn add_v(&mut self, storage: &HelixGraphStorage, node_label: &str) -> &mut Self {
         let node = storage.create_node(node_label, props!()).unwrap(); // TODO: Handle error
         self.current_step = vec![TraversalValue::SingleNode(node)];
         self
     }
 
-    #[named]
     fn add_e(
         &mut self,
         storage: &HelixGraphStorage,
@@ -102,9 +98,9 @@ impl SourceTraversalSteps for TraversalBuilder {
 }
 
 impl TraversalSteps for TraversalBuilder {
-    #[named]
+
     fn out(&mut self, storage: &HelixGraphStorage, edge_label: &str) -> &mut Self {
-        self.check_is_valid_node_traversal(function_name!())
+        self.check_is_valid_node_traversal("out")
             .unwrap(); // TODO: Handle error
 
         if let TraversalValue::NodeArray(nodes) = &self.current_step[0] {
@@ -119,9 +115,8 @@ impl TraversalSteps for TraversalBuilder {
         self
     }
 
-    #[named]
     fn out_e(&mut self, storage: &HelixGraphStorage, edge_label: &str) -> &mut Self {
-        self.check_is_valid_node_traversal(function_name!())
+        self.check_is_valid_node_traversal("out_e")
             .unwrap(); // TODO: Handle error
         if let TraversalValue::NodeArray(nodes) = &self.current_step[0] {
             let mut new_current: Vec<TraversalValue> = Vec::with_capacity(nodes.len());
@@ -135,9 +130,9 @@ impl TraversalSteps for TraversalBuilder {
         self
     }
 
-    #[named]
+
     fn in_(&mut self, storage: &HelixGraphStorage, edge_label: &str) -> &mut Self {
-        self.check_is_valid_node_traversal(function_name!())
+        self.check_is_valid_node_traversal("in_")
             .unwrap();
         if let TraversalValue::NodeArray(nodes) = &self.current_step[0] {
             let mut new_current: Vec<TraversalValue> = Vec::with_capacity(nodes.len());
@@ -151,9 +146,9 @@ impl TraversalSteps for TraversalBuilder {
         self
     }
 
-    #[named]
+
     fn in_e(&mut self, storage: &HelixGraphStorage, edge_label: &str) -> &mut Self {
-        self.check_is_valid_node_traversal(function_name!())
+        self.check_is_valid_node_traversal("in_e")
             .unwrap();
         if let TraversalValue::NodeArray(nodes) = &self.current_step[0] {
             let mut new_current: Vec<TraversalValue> = Vec::with_capacity(nodes.len());

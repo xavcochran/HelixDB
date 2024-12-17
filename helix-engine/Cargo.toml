@@ -28,6 +28,11 @@ harness = false
 name = "helix_engine"
 path = "src/lib.rs"
 
-# [[bin]]
-# name = "helixengine"
-# path = "src/main.rs"
+[profile.release]
+strip = "debuginfo"
+lto = true
+opt-level = "z"
+
+[[bin]]
+name = "helix_engine"
+path = "src/lib.rs"

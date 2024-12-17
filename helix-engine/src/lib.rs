@@ -5,3 +5,6 @@ pub mod macros;
 
 use storage_core::storage_core::HelixGraphStorage;
 
+fn main() {
+
+}

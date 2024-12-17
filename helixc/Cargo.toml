@@ -6,7 +6,12 @@ edition = "2021"
 [dependencies]
 pest = "2.7"
 pest_derive = "2.7"
+tempfile = "3.2"
 
 [lib]
 name = "helixc"
 path = "src/lib.rs"
+
+[[bin]]
+name = "helixc"
+path = "src/main.rs"
