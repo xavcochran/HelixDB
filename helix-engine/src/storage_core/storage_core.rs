@@ -154,7 +154,7 @@ impl StorageMethods for HelixGraphStorage {
         let cf_nodes = self.db.cf_handle(CF_NODES).unwrap();
         match self
             .db
-            .get_pinned_cf(cf_nodes, [NODE_PREFIX, id.as_bytes()].concat())
+            .get_pinned_cf(&cf_nodes, [NODE_PREFIX, id.as_bytes()].concat())
         {
             Ok(Some(_)) => Ok(true),
             Ok(None) => Ok(false),
@@ -166,7 +166,7 @@ impl StorageMethods for HelixGraphStorage {
         let cf_nodes = self.db.cf_handle(CF_NODES).unwrap();
         match self
             .db
-            .get_pinned_cf(cf_nodes, [NODE_PREFIX, id.as_bytes()].concat())
+            .get_pinned_cf(&cf_nodes, [NODE_PREFIX, id.as_bytes()].concat())
         {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
             Ok(None) => Err(GraphError::New(format!("Item not found!"))),
@@ -178,7 +178,7 @@ impl StorageMethods for HelixGraphStorage {
         let cf_edges = self.db.cf_handle(CF_EDGES).unwrap();
         match self
             .db
-            .get_pinned_cf(cf_edges, [EDGE_PREFIX, id.as_bytes()].concat())
+            .get_pinned_cf(&cf_edges, [EDGE_PREFIX, id.as_bytes()].concat())
         {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
             Ok(None) => Err(GraphError::New(format!("Item not found!"))),
@@ -190,7 +190,7 @@ impl StorageMethods for HelixGraphStorage {
         let cf_nodes = self.db.cf_handle(CF_NODES).unwrap();
         match self
             .db
-            .get_cf(cf_nodes, [NODE_PREFIX, id.as_bytes()].concat())
+            .get_cf(&cf_nodes, [NODE_PREFIX, id.as_bytes()].concat())
         {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
             Ok(None) => Err(GraphError::New(format!("Item not found!"))),
@@ -201,7 +201,7 @@ impl StorageMethods for HelixGraphStorage {
         let cf_edges = self.db.cf_handle(CF_EDGES).unwrap();
         match self
             .db
-            .get_cf(cf_edges, [EDGE_PREFIX, id.as_bytes()].concat())
+            .get_cf(&cf_edges, [EDGE_PREFIX, id.as_bytes()].concat())
         {
             Ok(Some(data)) => Ok(deserialize(&data).unwrap()),
             Ok(None) => Err(GraphError::New(format!("Item not found!"))),
@@ -221,7 +221,7 @@ impl StorageMethods for HelixGraphStorage {
 
         let out_prefix = Self::out_edge_key(node_id, "");
         let iter = self.db.iterator_cf_opt(
-            cf_edge_index,
+            &cf_edge_index,
             read_opts,
             IteratorMode::From(&out_prefix, rocksdb::Direction::Forward),
         );
@@ -252,7 +252,7 @@ impl StorageMethods for HelixGraphStorage {
         read_opts.set_readahead_size(2 * 1024 * 1024);
         read_opts.set_prefix_same_as_start(true);
         let iter = self.db.iterator_cf_opt(
-            cf_edges,
+            &cf_edges,
             read_opts,
             IteratorMode::From(&in_prefix, rocksdb::Direction::Forward),
         );
@@ -284,7 +284,7 @@ impl StorageMethods for HelixGraphStorage {
         read_opts.set_readahead_size(2 * 1024 * 1024);
         read_opts.set_prefix_same_as_start(true);
         let iter = self.db.iterator_cf_opt(
-            cf_edges,
+            &cf_edges,
             read_opts,
             IteratorMode::From(&out_prefix, rocksdb::Direction::Forward),
         );
@@ -318,7 +318,7 @@ impl StorageMethods for HelixGraphStorage {
         read_opts.set_readahead_size(2 * 1024 * 1024);
         read_opts.set_prefix_same_as_start(true);
         let iter = self.db.iterator_cf_opt(
-            cf_edges,
+            &cf_edges,
             read_opts,
             IteratorMode::From(&in_prefix, rocksdb::Direction::Forward),
         );
@@ -352,7 +352,7 @@ impl StorageMethods for HelixGraphStorage {
         read_opts.set_readahead_size(2 * 1024 * 1024);
         read_opts.set_prefix_same_as_start(true);
         let iter = self.db.iterator_cf_opt(
-            cf_nodes,
+            &cf_nodes,
             read_opts,
             IteratorMode::From(&node_prefix, rocksdb::Direction::Forward),
         );
@@ -378,7 +378,7 @@ impl StorageMethods for HelixGraphStorage {
         read_opts.set_readahead_size(2 * 1024 * 1024);
         read_opts.set_prefix_same_as_start(true);
         let iter = self.db.iterator_cf_opt(
-            cf_edges,
+            &cf_edges,
             read_opts,
             IteratorMode::From(&edge_prefix, rocksdb::Direction::Forward),
         );
@@ -408,11 +408,11 @@ impl StorageMethods for HelixGraphStorage {
         let mut new_batch = WriteBatchWithTransaction::default();
 
         new_batch.put_cf(
-            cf_nodes,
+            &cf_nodes,
             Self::node_key(&node.id),
             serialize(&node).unwrap(),
         );
-        new_batch.put_cf(cf_nodes, Self::node_label_key(label, &node.id), vec![]);
+        new_batch.put_cf(&cf_nodes, Self::node_label_key(label, &node.id), vec![]);
 
         self.db.write(new_batch)?;
         Ok(node)
@@ -453,16 +453,16 @@ impl StorageMethods for HelixGraphStorage {
 
         // new edge
         batch.put_cf(
-            cf_edges,
+            &cf_edges,
             Self::edge_key(&edge.id),
             bincode::serialize(&edge).unwrap(),
         );
         // edge label
-        batch.put_cf(cf_edges, Self::edge_label_key(label, &edge.id), vec![]);
+        batch.put_cf(&cf_edges, Self::edge_label_key(label, &edge.id), vec![]);
 
         // edge keys
-        batch.put_cf(cf_edges, Self::out_edge_key(from_node, &edge.id), vec![]);
-        batch.put_cf(cf_edges, Self::in_edge_key(to_node, &edge.id), vec![]);
+        batch.put_cf(&cf_edges, Self::out_edge_key(from_node, &edge.id), vec![]);
+        batch.put_cf(&cf_edges, Self::in_edge_key(to_node, &edge.id), vec![]);
 
         let mut write_opts = WriteOptions::default();
         write_opts.set_sync(false); 
@@ -483,7 +483,7 @@ impl StorageMethods for HelixGraphStorage {
         // get out edges
         let out_prefix = Self::out_edge_key(id, "");
         let iter = self.db.iterator_cf_opt(
-            cf_nodes,
+            &cf_nodes,
             read_opts,
             IteratorMode::From(&out_prefix, rocksdb::Direction::Forward),
         );
@@ -506,7 +506,7 @@ impl StorageMethods for HelixGraphStorage {
         // get in edges
         let in_prefix = Self::in_edge_key(id, "");
         let iter = self.db.iterator_cf_opt(
-            cf_edges,
+            &cf_edges,
             read_opts,
             IteratorMode::From(&in_prefix, rocksdb::Direction::Forward),
         );
@@ -522,7 +522,7 @@ impl StorageMethods for HelixGraphStorage {
         }
 
         // delete node
-        self.db.delete_cf(cf_nodes, Self::node_key(id))?;
+        self.db.delete_cf(&cf_nodes, Self::node_key(id))?;
 
         Ok(())
     }
@@ -531,15 +531,15 @@ impl StorageMethods for HelixGraphStorage {
         let cf_edges = self.db.cf_handle(CF_EDGES).unwrap();
         let edge_data = self
             .db
-            .get_pinned_cf(cf_edges, Self::edge_key(edge_id))?
+            .get_pinned_cf(&cf_edges, Self::edge_key(edge_id))?
             .unwrap();
         let edge: Edge = deserialize(&edge_data).unwrap();
 
         let mut batch = WriteBatch::default();
 
-        batch.delete_cf(cf_edges, Self::out_edge_key(&edge.from_node, edge_id));
-        batch.delete_cf(cf_edges, Self::in_edge_key(&edge.to_node, edge_id));
-        batch.delete_cf(cf_edges, Self::edge_key(edge_id));
+        batch.delete_cf(&cf_edges, Self::out_edge_key(&edge.from_node, edge_id));
+        batch.delete_cf(&cf_edges, Self::in_edge_key(&edge.to_node, edge_id));
+        batch.delete_cf(&cf_edges, Self::edge_key(edge_id));
 
         match self.db.write(batch) {
             Ok(_) => Ok(()),

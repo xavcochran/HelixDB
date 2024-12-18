@@ -1,0 +1,20 @@
+[package]
+name = "helix-gateway"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4"
+flume = "0.11.1"
+helix-engine = { path = "../helix-engine" }
+routerify = "3.0.0"
+tempfile = "3.2"
+uuid = { version = "1.11.0", features = ["v4", "fast-rng"] }
+
+[lib]
+name = "helix_gateway"
+path = "src/lib.rs"
+
+[[bin]]
+name = "helix-gateway"
+path = "src/main.rs"

@@ -33,3 +33,9 @@ impl From<rocksdb::Error> for GraphError {
     }
 }
 
+impl From<std::io::Error> for GraphError {
+    fn from(error: std::io::Error) -> Self {
+        GraphError::Io(error)
+    }
+}
+
