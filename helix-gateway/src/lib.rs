@@ -1,18 +1,35 @@
+use connection::connection::ConnectionHandler;
+use helix_engine::storage_core::storage_core::HelixGraphStorage;
+use router::router::HelixRouter;
+
 pub mod connection;
 pub mod router;
 pub mod thread_pool;
+pub struct GatewayOpts {
+}
 
-pub struct HelixGateway {}
+impl GatewayOpts {
+    pub const DEFAULT_POOL_SIZE: usize = 10;
+}
+
+pub struct HelixGateway {
+    pub connection_handler: ConnectionHandler,
+}
+
+impl HelixGateway {
+    pub fn new(address: &str, graph: HelixGraphStorage, size: usize) -> HelixGateway {
+        let connection_handler = ConnectionHandler::new(address, graph, size, HelixRouter::new()).unwrap();
+        HelixGateway {
+            connection_handler,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use connection::connection::ConnectionHandler;
     use helix_engine::{storage_core::storage_core::HelixGraphStorage, types::GraphError};
-    use router::{
-        request::Request,
-        response::Response,
-        router::HelixRouter,
-    };
+    use router::{request::Request, response::Response, router::HelixRouter};
     use std::{
         io::{Read, Write},
         net::{TcpListener, TcpStream},
@@ -53,16 +70,15 @@ mod tests {
         let mut buffer = [0; 1024];
 
         while start.elapsed() < timeout {
-
-                match stream.read(&mut buffer) {
-                    Ok(0) => break, // If EOF reached
-                    Ok(n) => received.extend_from_slice(&buffer[..n]),
-                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        std::thread::sleep(Duration::from_millis(10));
-                        continue;
-                    }
-                    Err(e) => return Err(e),
+            match stream.read(&mut buffer) {
+                Ok(0) => break, // If EOF reached
+                Ok(n) => received.extend_from_slice(&buffer[..n]),
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(10));
+                    continue;
                 }
+                Err(e) => return Err(e),
+            }
         }
 
         Ok(received)
@@ -119,7 +135,7 @@ mod tests {
     #[test]
     fn test_connection_handler() -> Result<(), GraphError> {
         let (storage, _) = setup_temp_db();
-        let address = "127.0.0.1:0"; 
+        let address = "127.0.0.1:0";
 
         let router = HelixRouter::new();
 

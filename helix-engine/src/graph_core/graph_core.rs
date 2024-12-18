@@ -1,10 +1,11 @@
 use std::str;
-
-use crate::graph_core::graph_methods::GraphMethods;
 use crate::types::GraphError;
 use crate::HelixGraphStorage;
+
+use super::traversal::TraversalBuilder;
+use serde_json::json;
 pub struct HelixGraphEngine {
-    storage: HelixGraphStorage,
+    pub storage: HelixGraphStorage,
 }
 
 impl HelixGraphEngine {
@@ -14,5 +15,11 @@ impl HelixGraphEngine {
             Err(err) => return Err(err),
         };
         Ok(Self { storage })
+    }
+
+    pub fn result_to_json(&self, traversal: &TraversalBuilder) {
+        let current_step = &traversal.current_step;
+        let json_result = json!(current_step);
+        println!("{}", json_result.to_string());
     }
 }

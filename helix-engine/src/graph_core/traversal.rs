@@ -5,12 +5,13 @@ use crate::{
 };
 use protocol::{Edge, Node, Value};
 use rocksdb::properties;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
 
 use super::traversal_steps::{SourceTraversalSteps, TraversalSteps};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum TraversalValue {
     SingleNode(Node),
     SingleEdge(Edge),
@@ -21,8 +22,8 @@ pub enum TraversalValue {
 }
 
 pub struct TraversalBuilder {
-    variables: HashMap<String, TraversalValue>,
-    current_step: Vec<TraversalValue>,
+    pub variables: HashMap<String, TraversalValue>,
+    pub current_step: Vec<TraversalValue>,
 }
 
 impl TraversalBuilder {

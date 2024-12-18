@@ -1,0 +1,11 @@
+[package]
+name = "helix-container"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+helix-engine = { path = "../helix-engine" }
+protocol = { path = "../protocol" }
+helix-gateway = { path = "../helix-gateway" }
+helixc = { path = "../helixc" }
+chrono = "0.4"

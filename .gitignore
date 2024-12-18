@@ -1,3 +1,4 @@
 docs/whitepaperV1.md
 **/target/
 /graph_queries/
+/graph_data/
