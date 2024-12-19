@@ -22,4 +22,10 @@ impl HelixGraphEngine {
         let json_result = json!(current_step);
         println!("{}", json_result.to_string());
     }
+
+    pub fn result_to_pretty_json(&self, traversal: &TraversalBuilder) {
+        let current_step = &traversal.current_step;
+        let json_result = json!(current_step);
+        println!("{}", serde_json::to_string_pretty(&json_result).unwrap());
+    }
 }
