@@ -21,11 +21,17 @@ impl Response {
     }
 
     /// Send response back via stream
-    pub fn send<W: Write>(&self, stream: &mut W) -> std::io::Result<()> {
+    pub fn send<W: Write>(&mut self, stream: &mut W) -> std::io::Result<()> {
         let status_message = match self.status { 
             200 => "OK",
-            404 => "Not Found",
-            500 => "Internal Server Error",
+            404 => {
+                self.body = b"404 - Route Not Found\n".to_vec();
+                "Not Found"
+            }
+            500 => {
+                self.body = b"500 - Internal Server Error\n".to_vec();
+                "Internal Server Error"
+            }
             _ => "Unknown"
         };
 
@@ -38,10 +44,11 @@ impl Response {
         self.headers.iter().for_each(|(header, value)| {
             write!(data_to_write, "{}: {}\r\n", header, value).unwrap();
         });
+
         write!(data_to_write, "Content-Length: {}\r\n", self.body.len())?;
         write!(data_to_write, "\r\n")?;
 
-        println!("BODY: {:?}", String::from_utf8(self.body.clone()));
+        println!("BODY: {:?}", String::from_utf8(data_to_write.clone()));
         // write body
         stream.write_all(&data_to_write)?;
         stream.write_all(&self.body)?;

@@ -28,8 +28,9 @@ impl Worker {
             thread: thread::spawn(move || loop {
                 let mut conn = rx.lock().unwrap().recv().unwrap(); // TODO: Handle error
                 let request = Request::from_stream(&mut conn).unwrap(); // TODO: Handle Error
-
-                router.handle(Arc::clone(&graph_access), request, &mut Response::new()).unwrap(); // TODO: Handle Error
+                let mut response = Response::new();
+                router.handle(Arc::clone(&graph_access), request, &mut response).unwrap(); // TODO: Handle Error
+                response.send(&mut conn).unwrap();
             }),
         })
     }

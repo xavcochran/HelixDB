@@ -54,7 +54,14 @@ impl HelixRouter {
     ) -> Result<(), RouterError> {
         // find route
         let route_key = (request.method.clone(), request.path.clone());
-        let handler = self.routes.get(&route_key).unwrap(); // TODO: handle unwrap
+        let handler = match self.routes.get(&route_key) {
+            Some(handle) => handle,
+            None => {
+                response.status=404;   
+                println!("{:?}", response);
+                return Ok(());
+            }
+        };
 
         // get hold of graph storage
         // let graph = &graph_access.lock().unwrap();

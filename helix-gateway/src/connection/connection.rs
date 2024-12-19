@@ -1,12 +1,13 @@
 use chrono::{DateTime, Utc};
 use helix_engine::{storage_core::storage_core::HelixGraphStorage, types::GraphError};
+use std::thread::{self, JoinHandle};
 use std::{
     collections::HashMap,
     net::{TcpListener, TcpStream},
-    sync::{Arc, Mutex}, time::Instant,
+    sync::{Arc, Mutex},
+    time::Instant,
 };
 use uuid::Uuid;
-
 
 use crate::{router::router::HelixRouter, thread_pool::thread_pool::ThreadPool};
 
@@ -39,9 +40,12 @@ impl ConnectionHandler {
         })
     }
 
-    pub fn accept_conns(&self) -> Result<(), GraphError> {
-        loop {
-            let conn = match self.listener.accept() {
+    pub fn accept_conns(&self) -> JoinHandle<Result<(), GraphError>> {
+        let listener = self.listener.try_clone().unwrap();
+        let active_connections = Arc::clone(&self.active_connections);
+        let thread_pool_sender = self.thread_pool.sender.clone();
+        thread::spawn(move || loop {
+            let conn = match listener.accept() {
                 Ok((conn, _)) => conn,
                 Err(err) => {
                     return Err(GraphError::GraphConnectionError(
@@ -58,11 +62,13 @@ impl ConnectionHandler {
                 last_active: Utc::now(),
             };
             // insert into hashmap
-            self.active_connections.lock().unwrap().insert(client.id.clone(), client);
-            
-            // pass conn to thread in thread pool via channel
-            self.thread_pool.sender.send(conn).unwrap();
+            active_connections
+                .lock()
+                .unwrap()
+                .insert(client.id.clone(), client);
 
-        }
+            // pass conn to thread in thread pool via channel
+            thread_pool_sender.send(conn).unwrap();
+        })
     }
 }

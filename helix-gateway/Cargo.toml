@@ -15,6 +15,3 @@ uuid = { version = "1.11.0", features = ["v4", "fast-rng"] }
 name = "helix_gateway"
 path = "src/lib.rs"
 
-[[bin]]
-name = "helix-gateway"
-path = "src/main.rs"
