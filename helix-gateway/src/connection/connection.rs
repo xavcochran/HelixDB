@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use helix_engine::graph_core::graph_core::HelixGraphEngine;
 use helix_engine::{storage_core::storage_core::HelixGraphStorage, types::GraphError};
 use std::thread::{self, JoinHandle};
 use std::{
@@ -26,7 +27,7 @@ pub struct ClientConnection {
 impl ConnectionHandler {
     pub fn new(
         address: &str,
-        storage: HelixGraphStorage,
+        storage: HelixGraphEngine,
         size: usize,
         router: HelixRouter,
     ) -> Result<Self, GraphError> {

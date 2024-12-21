@@ -1,4 +1,5 @@
 use flume::{bounded, unbounded, Receiver, Sender};
+use helix_engine::graph_core::graph_core::HelixGraphEngine;
 use helix_engine::storage_core::storage_core::HelixGraphStorage; // change once transactions in place
 use helix_engine::types::GraphError;
 use std::io::Read;
@@ -6,8 +7,8 @@ use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::router::request::Request;
-use crate::router::response::Response;
+use protocol::request::Request;
+use protocol::response::Response;
 use crate::router::router::HelixRouter;
 
 pub struct Worker {
@@ -19,7 +20,7 @@ pub struct Worker {
 impl Worker {
     fn new(
         id: usize,
-        graph_access: Arc<Mutex<HelixGraphStorage>>,
+        graph_access: Arc<Mutex<HelixGraphEngine>>,
         router: Arc<HelixRouter>,
         rx: Arc<Mutex<Receiver<TcpStream>>>,
     ) -> Arc<Worker> {
@@ -46,7 +47,7 @@ pub struct ThreadPool {
 impl ThreadPool {
     pub fn new(
         size: usize,
-        storage: HelixGraphStorage,
+        storage: HelixGraphEngine,
         router: Arc<HelixRouter>,
     ) -> Self {
         assert!(
@@ -74,29 +75,4 @@ impl ThreadPool {
             workers: Mutex::new(workers),
         }
     }
-
-    // // TODO: Handle unwraps to return workers to pool if failure
-    // pub fn get(&self) -> Arc<Worker> {
-    //     // let index = *self.num_unused_workers.lock().unwrap() - 1;
-    //     let worker = self.workers.lock().unwrap().pop().unwrap();
-    //     let res = Arc::clone(&worker);
-    //     // self.used_workers.lock().unwrap().push(worker);
-    //     self._take_worker();
-    //     res
-    // }
-
-    // pub fn put(&self, worker: Arc<Worker>) {
-    //     self.workers.lock().unwrap().push(worker);
-    //     self._put_worker();
-    // }
-
-    // fn _take_worker(&self) {
-    //     *self.num_unused_workers.lock().unwrap() -= 1;
-    //     *self.num_used_workers.lock().unwrap() += 1;
-    // }
-
-    // fn _put_worker(&self) {
-    //     *self.num_unused_workers.lock().unwrap() += 1;
-    //     *self.num_used_workers.lock().unwrap() -= 1;
-    // }
 }

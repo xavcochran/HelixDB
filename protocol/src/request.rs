@@ -1,5 +1,6 @@
 use std::{collections::HashMap, io::Read, net::TcpStream};
 
+#[derive(Debug)]
 pub struct Request {
     pub method: String,
     pub headers: HashMap<String, String>,
@@ -23,7 +24,6 @@ impl Request {
             }
         }
 
-        // TODO: read and split up data
         let mut lines = request_data.lines();
         let first_line = lines.next().unwrap_or("");
         let mut parts = first_line.split_whitespace();

@@ -2,6 +2,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+pub mod request;
+pub mod response;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Node {
     pub id: String,

@@ -6,11 +6,9 @@ use crate::generator::project_gen::ProjectGenerator;
 use crate::generator::query_gen::TraversalGenerator;
 
 pub fn run_generator() -> Result<(), Box<dyn Error>> {
-    // Configure where to output the generated project
     let output_dir = PathBuf::from("../");
     let mut queries = HashMap::new();
 
-    // Create the traversal generator and build a sample traversal
     let traversal_generator = TraversalGenerator::new("test_function")
         .v()
         .out("knows")
@@ -23,9 +21,7 @@ pub fn run_generator() -> Result<(), Box<dyn Error>> {
 
     let traversal_generator = TraversalGenerator::new("test_function2")
         .v()
-        .out("likes")
-        .in_("follows")
-        .in_e("knows");
+        .out("knows");
     let traversal_code = traversal_generator.generate_code()?;
     queries.insert("test_function2".to_string(), traversal_code);
 
@@ -43,3 +39,4 @@ pub fn run_generator() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+

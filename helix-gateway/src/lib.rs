@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use connection::connection::ConnectionHandler;
-use helix_engine::storage_core::storage_core::HelixGraphStorage;
-use router::router::HelixRouter;
+use helix_engine::{graph_core::graph_core::HelixGraphEngine, storage_core::storage_core::HelixGraphStorage};
+use router::router::{HandlerFn, HelixRouter};
 
 pub mod connection;
 pub mod router;
@@ -17,8 +19,9 @@ pub struct HelixGateway {
 }
 
 impl HelixGateway {
-    pub fn new(address: &str, graph: HelixGraphStorage, size: usize) -> HelixGateway {
-        let connection_handler = ConnectionHandler::new(address, graph, size, HelixRouter::new()).unwrap();
+    pub fn new(address: &str, graph: HelixGraphEngine, size: usize, routes: Option<HashMap<(String,String), HandlerFn>>) -> HelixGateway {
+        let router= HelixRouter::new(routes);
+        let connection_handler = ConnectionHandler::new(address, graph, size, router).unwrap();
         HelixGateway {
             connection_handler,
         }
@@ -29,7 +32,8 @@ impl HelixGateway {
 mod tests {
     use connection::connection::ConnectionHandler;
     use helix_engine::{storage_core::storage_core::HelixGraphStorage, types::GraphError};
-    use router::{request::Request, response::Response, router::HelixRouter};
+    use protocol::{request::Request, response::Response};
+    use router::router::HelixRouter;
     use std::{
         io::{Read, Write},
         net::{TcpListener, TcpStream},
@@ -41,10 +45,10 @@ mod tests {
 
     use super::*;
 
-    fn setup_temp_db() -> (HelixGraphStorage, TempDir) {
+    fn setup_temp_db() -> (HelixGraphEngine, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().to_str().unwrap();
-        let storage = HelixGraphStorage::new(db_path).unwrap();
+        let storage = HelixGraphEngine::new(db_path).unwrap();
         (storage, temp_dir)
     }
 
@@ -115,7 +119,7 @@ mod tests {
     fn test_thread_pool_creation() {
         let (storage, _) = setup_temp_db();
         let size = 4;
-        let router = Arc::new(HelixRouter::new());
+        let router = Arc::new(HelixRouter::new(None));
 
         let pool = ThreadPool::new(size, storage, router);
 
@@ -127,7 +131,7 @@ mod tests {
     #[should_panic(expected = "Expected number of threads in thread pool to be more than 0")]
     fn test_thread_pool_zero_size() {
         let (storage, _) = setup_temp_db();
-        let router = Arc::new(HelixRouter::new());
+        let router = Arc::new(HelixRouter::new(None));
 
         ThreadPool::new(0, storage, router);
     }
@@ -137,7 +141,7 @@ mod tests {
         let (storage, _) = setup_temp_db();
         let address = "127.0.0.1:0";
 
-        let router = HelixRouter::new();
+        let router = HelixRouter::new(None);
 
         let handler = ConnectionHandler::new(address, storage, 4, router)?;
 
@@ -151,7 +155,7 @@ mod tests {
     fn test_router_integration() -> std::io::Result<()> {
         let (mut client, mut server) = create_test_connection()?;
         let (storage, _) = setup_temp_db();
-        let mut router = HelixRouter::new();
+        let mut router = HelixRouter::new(None);
         let graph_storage = Arc::new(Mutex::new(storage));
 
         // Add route

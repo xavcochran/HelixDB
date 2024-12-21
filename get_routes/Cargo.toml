@@ -1,0 +1,12 @@
+[package]
+name = "get_routes"
+version = "0.1.0"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0", features = ["full"] }
+quote = "1.0"
+proc-macro2 = "1.0"
+helix-gateway = { path = "../helix-gateway" }

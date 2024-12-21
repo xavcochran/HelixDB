@@ -67,6 +67,12 @@ impl ProjectGenerator {
             writeln!(cargo_toml, "{} = \"{}\"", name, version)?;
         }
 
+        writeln!(cargo_toml).unwrap();
+        writeln!(cargo_toml, "[profile.release]").unwrap();
+        writeln!(cargo_toml, "strip = \"debuginfo\"").unwrap();
+        writeln!(cargo_toml, "lto = true").unwrap();
+        writeln!(cargo_toml, "opt-level = \"z\"").unwrap();
+
         Ok(())
     }
 
@@ -76,37 +82,47 @@ impl ProjectGenerator {
         writeln!(lib_rs, "mod traversals;")?;
         writeln!(lib_rs)?;
         let count = self.queries.clone().iter().count();
+
+        let mut routes = Vec::with_capacity(count);
         if count == 1 {
             self.queries.iter().for_each(|(fn_id, _)| {
                 writeln!(lib_rs, "pub use traversals::{};", fn_id).unwrap();
+                routes.push(fn_id.clone());
             })
         } else {
             write!(lib_rs, "pub use traversals::{{").unwrap();
-            self.queries.iter().enumerate().for_each(|(i,(fn_id, _))| {
-                if i+1 == count {
+            self.queries.iter().enumerate().for_each(|(i, (fn_id, _))| {
+                if i + 1 == count {
                     write!(lib_rs, "{}", fn_id).unwrap();
                 } else {
                     write!(lib_rs, "{}, ", fn_id).unwrap();
                 }
+                routes.push(fn_id.clone());
             });
             write!(lib_rs, "}};").unwrap();
         };
-
         Ok(())
     }
 
     fn generate_traversal_module(&self, project_dir: &Path) -> std::io::Result<()> {
         let mut traversals_rs = fs::File::create(project_dir.join("src/traversals.rs"))?;
-        writeln!(traversals_rs, "use helix_engine::graph_core::traversal::TraversalBuilder;")?;
+        writeln!(
+            traversals_rs,
+            "use helix_engine::graph_core::traversal::TraversalBuilder;"
+        )?;
         writeln!(traversals_rs, "use helix_engine::graph_core::traversal_steps::{{SourceTraversalSteps, TraversalSteps}};")?;
-        writeln!(traversals_rs, "use helix_engine::storage_core::storage_core::HelixGraphStorage;")?;
+        writeln!(
+            traversals_rs,
+            "use helix_engine::storage_core::storage_core::HelixGraphStorage;"
+        )?;
         writeln!(traversals_rs)?;
-        self.queries.iter().for_each(|(_, query_body)| {
+        self.queries.iter().for_each(|(_, query)| {
             // match writeln!(traversals_rs, "{}", query_body) {
             //     Ok(_) => (),
             //     Err(err) => return Err(err)
             // }
-            writeln!(traversals_rs, "{}", query_body).unwrap();
+            writeln!(traversals_rs, "#[handler]").unwrap();
+            writeln!(traversals_rs, "{}", query).unwrap();
         });
         Ok(())
     }
